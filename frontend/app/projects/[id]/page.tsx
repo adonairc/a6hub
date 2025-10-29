@@ -182,28 +182,22 @@ export default function ProjectPage() {
 
      {/* Tabs */}
      <div className="border-b border-gray-200 bg-white">
-              
-
-<div className="text-sm font-medium text-center text-gray-500 border-b border-gray-200 dark:text-gray-400 dark:border-gray-700">
+<div className="text-sm font-medium text-center text-gray-500 border-b border-gray-200">
     <ul className="flex flex-wrap -mb-px">
        <li className="me-2">
-            <a href="#" className="inline-block p-4 text-black border-b-2 border-black rounded-t-lg active dark:text-blue-500 dark:border-blue-500">Design</a>
+            <Link href={`/projects/${projectId}`} className="inline-block p-4 text-black border-b-2 border-black rounded-t-lg active">Design</Link>
         </li>
         <li className="me-2">
-            <a href="#" className="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300"  aria-current="page">Simulation</a>
-        </li>
-       
-        <li className="me-2">
-            <a href="#" className="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300">Build</a>
+            <a href="#" className="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300">Simulation</a>
         </li>
         <li className="me-2">
-            <a href="#" className="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300">Settings</a>
+            <Link href={`/projects/${projectId}/build`} className="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300">Build</Link>
+        </li>
+        <li className="me-2">
+            <a href="#" className="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300">Settings</a>
         </li>
     </ul>
 </div>
-
-
-
      </div>
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
