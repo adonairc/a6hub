@@ -90,16 +90,37 @@ export const filesAPI = {
 export const jobsAPI = {
   list: (projectId: number) =>
     api.get(`/api/v1/projects/${projectId}/jobs`),
-  
+
   get: (projectId: number, jobId: number) =>
     api.get(`/api/v1/projects/${projectId}/jobs/${jobId}`),
-  
+
   create: (projectId: number, data: { job_type: string; config?: any }) =>
     api.post(`/api/v1/projects/${projectId}/jobs`, data),
-  
+
   getLogs: (projectId: number, jobId: number) =>
     api.get(`/api/v1/projects/${projectId}/jobs/${jobId}/logs`),
-  
+
   cancel: (projectId: number, jobId: number) =>
     api.delete(`/api/v1/projects/${projectId}/jobs/${jobId}`),
+};
+
+// Builds API (LibreLane flow management)
+export const buildsAPI = {
+  getPresets: () =>
+    api.get('/api/v1/builds/presets'),
+
+  getPDKs: () =>
+    api.get('/api/v1/builds/pdks'),
+
+  getConfig: (projectId: number) =>
+    api.get(`/api/v1/builds/${projectId}/build/config`),
+
+  saveConfig: (projectId: number, config: any) =>
+    api.put(`/api/v1/builds/${projectId}/build/config`, config),
+
+  startBuild: (projectId: number, data: { config: any }) =>
+    api.post(`/api/v1/builds/${projectId}/build`, data),
+
+  getStatus: (projectId: number) =>
+    api.get(`/api/v1/builds/${projectId}/build/status`),
 };

@@ -2,16 +2,17 @@
 Pydantic schemas for Job model
 """
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 from datetime import datetime
 from app.models.job import JobType, JobStatus
+from app.schemas.librelane import LibreLaneFlowConfig
 
 
 # Job Creation
 class JobCreate(BaseModel):
     """Schema for creating a new job"""
     job_type: JobType
-    config: Optional[Dict[str, Any]] = None
+    config: Optional[Union[Dict[str, Any], LibreLaneFlowConfig]] = None
 
 
 # Job Response
