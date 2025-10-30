@@ -224,7 +224,6 @@ export default function DesignPage() {
             </div>
           )}
         </div>
-      </div>
 
       {/* New file modal */}
       {showNewFileModal && (
