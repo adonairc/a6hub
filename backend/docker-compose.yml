@@ -83,9 +83,11 @@ services:
         condition: service_healthy
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-  # Celery Worker
+  # Celery Worker for Build Jobs
   celery-worker:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
     container_name: a6hub-celery-worker
     environment:
       - POSTGRES_HOST=postgres
@@ -99,14 +101,35 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_SECURE=false
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     volumes:
       - ./:/app
       - storage_data:/tmp/a6hub-storage
       - repos_data:/tmp/a6hub-repos
+      - /var/run/docker.sock:/var/run/docker.sock  # Mount Docker socket for LibreLane
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    command: celery -A app.workers.celery_app worker --loglevel=info --queues=build,simulation --concurrency=2
+    restart: unless-stopped
+
+  # Flower - Celery Monitoring Dashboard
+  flower:
+    build: .
+    container_name: a6hub-flower
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    ports:
+      - "5555:5555"
     depends_on:
       - redis
-      - postgres
-    command: celery -A app.workers.celery_app worker --loglevel=info
+      - celery-worker
+    command: celery -A app.workers.celery_app flower --port=5555
+    restart: unless-stopped
 
 volumes:
   postgres_data:
