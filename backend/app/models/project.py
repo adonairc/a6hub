@@ -34,7 +34,11 @@ class Project(Base):
         default=ProjectVisibility.PRIVATE,
         nullable=False
     )
-    
+
+    # Popularity metrics
+    stars_count = Column(Integer, default=0, nullable=False)
+    views_count = Column(Integer, default=0, nullable=False)
+
     # Git repository information
     repo_url = Column(String, nullable=True)
     git_branch = Column(String, default="main")
