@@ -1,32 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { projectsAPI, filesAPI, jobsAPI } from '@/lib/api';
+import { useParams } from 'next/navigation';
+import { filesAPI } from '@/lib/api';
 import Editor from '@monaco-editor/react';
-import {
-  ArrowLeft,
-  FileCode,
-  Plus,
-  Play,
-  Settings,
-  Trash2,
-  Save,
-  Lock,
-  Globe,
-  Folder,
-  FolderOpen,
-} from 'lucide-react';
+import { FileCode, Plus, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
-
-interface Project {
-  id: number;
-  name: string;
-  description: string | null;
-  visibility: string;
-  created_at: string;
-}
 
 interface ProjectFile {
   id: number;
@@ -40,12 +19,10 @@ interface ProjectFileWithContent extends ProjectFile {
   content: string;
 }
 
-export default function ProjectPage() {
+export default function DesignPage() {
   const params = useParams();
-  const router = useRouter();
   const projectId = parseInt(params.id as string);
 
-  const [project, setProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [activeFile, setActiveFile] = useState<ProjectFileWithContent | null>(null);
   const [editorContent, setEditorContent] = useState('');
@@ -54,21 +31,8 @@ export default function ProjectPage() {
   const [showNewFileModal, setShowNewFileModal] = useState(false);
 
   useEffect(() => {
-    loadProject();
     loadFiles();
   }, [projectId]);
-
-  const loadProject = async () => {
-    try {
-      const response = await projectsAPI.get(projectId);
-      setProject(response.data);
-    } catch (error) {
-      toast.error('Failed to load project');
-      router.push('/projects');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const loadFiles = async () => {
     try {
@@ -76,6 +40,8 @@ export default function ProjectPage() {
       setFiles(response.data);
     } catch (error) {
       console.error('Failed to load files:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -121,90 +87,55 @@ export default function ProjectPage() {
     }
   };
 
-  const runSimulation = async () => {
+  const deleteFile = async (fileId: number) => {
+    if (!confirm('Are you sure you want to delete this file?')) return;
+
     try {
-      await jobsAPI.create(projectId, {
-        job_type: 'simulation',
-        config: { simulator: 'verilator' },
-      });
-      toast.success('Simulation started');
+      await filesAPI.delete(projectId, fileId);
+      await loadFiles();
+      if (activeFile?.id === fileId) {
+        setActiveFile(null);
+        setEditorContent('');
+      }
+      toast.success('File deleted');
     } catch (error) {
-      toast.error('Failed to start simulation');
+      toast.error('Failed to delete file');
     }
   };
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
-  }
-
-  if (!project) {
-    return null;
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-gray-500">Loading files...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="h-screen flex flex-col">
-      {/* Header */}
-      <div className="border-b border-gray-200 bg-white">
-        <div className="px-6 py-4">
-          <Link href="/projects" className="inline-flex items-center gap-2 text-gray-600 hover:text-black mb-3">
-            <ArrowLeft className="w-4 h-4" />
-            Back to projects
-          </Link>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">{project.name}</h1>
-              {project.visibility === 'private' ? (
-                <Lock className="w-5 h-5 text-gray-400" />
-              ) : (
-                <Globe className="w-5 h-5 text-gray-400" />
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={saveFile}
-                disabled={!activeFile || saving}
-                className="btn-secondary flex items-center gap-2 disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-              <button
-                onClick={runSimulation}
-                className="btn-primary flex items-center gap-2"
-              >
-                <Play className="w-4 h-4" />
-                Run Simulation
-              </button>
-            </div>
+    <div className="h-full flex flex-col">
+      {/* Toolbar */}
+      <div className="border-b border-gray-200 bg-white px-6 py-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Design Editor</h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={saveFile}
+              disabled={!activeFile || saving}
+              className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {saving ? 'Saving...' : 'Save'}
+            </button>
           </div>
         </div>
       </div>
 
-     {/* Tabs */}
-     <div className="border-b border-gray-200 bg-white">
-<div className="text-sm font-medium text-center text-gray-500 border-b border-gray-200">
-    <ul className="flex flex-wrap -mb-px">
-       <li className="me-2">
-            <Link href={`/projects/${projectId}`} className="inline-block p-4 text-black border-b-2 border-black rounded-t-lg active">Design</Link>
-        </li>
-        <li className="me-2">
-            <a href="#" className="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300">Simulation</a>
-        </li>
-        <li className="me-2">
-            <Link href={`/projects/${projectId}/build`} className="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300">Build</Link>
-        </li>
-        <li className="me-2">
-            <a href="#" className="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300">Settings</a>
-        </li>
-    </ul>
-</div>
-     </div>
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
         {/* File tree */}
         <div className="w-64 border-r border-gray-200 bg-white overflow-auto">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="font-semibold">Modules</h3>
+            <h3 className="font-semibold">Files</h3>
             <button
               onClick={() => setShowNewFileModal(true)}
               className="p-1 hover:bg-gray-100 rounded"
@@ -217,46 +148,81 @@ export default function ProjectPage() {
             {files.length === 0 ? (
               <div className="text-sm text-gray-500 p-4 text-center">
                 No files yet
+                <br />
+                <button
+                  onClick={() => setShowNewFileModal(true)}
+                  className="text-blue-600 hover:underline mt-2"
+                >
+                  Create your first file
+                </button>
               </div>
             ) : (
               files.map((file) => (
-                <button
+                <div
                   key={file.id}
-                  onClick={() => openFile(file)}
-                  className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 hover:bg-gray-100 ${
+                  className={`group px-3 py-2 rounded flex items-center justify-between hover:bg-gray-100 ${
                     activeFile?.id === file.id ? 'bg-gray-100' : ''
                   }`}
                 >
-                  <FileCode className="w-4 h-4 flex-shrink-0" />
-                  <span className="truncate text-sm">{file.filename}</span>
-                </button>
+                  <button
+                    onClick={() => openFile(file)}
+                    className="flex items-center gap-2 flex-1 text-left"
+                  >
+                    <FileCode className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate text-sm">{file.filename}</span>
+                  </button>
+                </div>
               ))
             )}
           </div>
         </div>
 
         {/* Editor */}
-        <div className="flex-1 bg-white">
+        <div className="flex-1 flex flex-col bg-white">
           {activeFile ? (
-            <Editor
-              height="100%"
-              defaultLanguage="verilog"
-              theme="vs-dark"
-              value={editorContent}
-              onChange={(value) => setEditorContent(value || '')}
-              options={{
-                minimap: { enabled: false },
-                fontSize: 14,
-                lineNumbers: 'on',
-                wordWrap: 'on',
-                scrollBeyondLastLine: false,
-              }}
-            />
+            <>
+              {/* File info bar */}
+              <div className="px-4 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileCode className="w-4 h-4 text-gray-600" />
+                  <span className="text-sm font-medium">{activeFile.filename}</span>
+                  <span className="text-xs text-gray-500">({activeFile.filepath})</span>
+                </div>
+                <div className="text-xs text-gray-500">
+                  {editorContent.split('\n').length} lines
+                </div>
+              </div>
+
+              {/* Monaco Editor */}
+              <div className="flex-1">
+                <Editor
+                  height="100%"
+                  defaultLanguage="verilog"
+                  theme="vs-dark"
+                  value={editorContent}
+                  onChange={(value) => setEditorContent(value || '')}
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    lineNumbers: 'on',
+                    wordWrap: 'on',
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                  }}
+                />
+              </div>
+            </>
           ) : (
             <div className="h-full flex items-center justify-center text-gray-500">
               <div className="text-center">
                 <FileCode className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p>Select a file to edit or create a new one</p>
+                <p className="mb-2">Select a file to edit</p>
+                <button
+                  onClick={() => setShowNewFileModal(true)}
+                  className="text-blue-600 hover:underline text-sm"
+                >
+                  or create a new file
+                </button>
               </div>
             </div>
           )}
@@ -265,10 +231,7 @@ export default function ProjectPage() {
 
       {/* New file modal */}
       {showNewFileModal && (
-        <NewFileModal
-          onClose={() => setShowNewFileModal(false)}
-          onCreate={createFile}
-        />
+        <NewFileModal onClose={() => setShowNewFileModal(false)} onCreate={createFile} />
       )}
     </div>
   );

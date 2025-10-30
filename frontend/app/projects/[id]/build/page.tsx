@@ -1,31 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { projectsAPI, buildsAPI } from '@/lib/api';
-import {
-  ArrowLeft,
-  Play,
-  Settings,
-  Lock,
-  Globe,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Loader,
-  Save,
-  RotateCcw,
-} from 'lucide-react';
+import { buildsAPI } from '@/lib/api';
+import { Play, CheckCircle, XCircle, Clock, Loader } from 'lucide-react';
 import toast from 'react-hot-toast';
-
-interface Project {
-  id: number;
-  name: string;
-  description: string | null;
-  visibility: string;
-  created_at: string;
-}
 
 interface LibreLaneFlowConfig {
   design_name: string;
@@ -67,10 +47,8 @@ const PDK_OPTIONS = [
 
 export default function BuildPage() {
   const params = useParams();
-  const router = useRouter();
   const projectId = parseInt(params.id as string);
 
-  const [project, setProject] = useState<Project | null>(null);
   const [config, setConfig] = useState<LibreLaneFlowConfig | null>(null);
   const [presets, setPresets] = useState<Record<string, BuildPreset>>({});
   const [buildStatus, setBuildStatus] = useState<BuildStatus | null>(null);
@@ -79,21 +57,10 @@ export default function BuildPage() {
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
 
   useEffect(() => {
-    loadProject();
     loadBuildConfig();
     loadPresets();
     loadBuildStatus();
   }, [projectId]);
-
-  const loadProject = async () => {
-    try {
-      const response = await projectsAPI.get(projectId);
-      setProject(response.data);
-    } catch (error) {
-      toast.error('Failed to load project');
-      router.push('/projects');
-    }
-  };
 
   const loadBuildConfig = async () => {
     try {
@@ -155,52 +122,40 @@ export default function BuildPage() {
   };
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
   }
 
-  if (!project || !config) {
+  if (!config) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="border-b border-gray-200 bg-white">
-        <div className="px-6 py-4">
-          <Link
-            href={`/projects/${projectId}`}
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-black mb-3"
+    <div className="h-full bg-gray-50 overflow-auto">
+      {/* Toolbar */}
+      <div className="border-b border-gray-200 bg-white px-6 py-3 sticky top-0 z-10">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">ASIC Build Configuration</h2>
+          <button
+            onClick={startBuild}
+            disabled={building}
+            className="btn-primary flex items-center gap-2"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back to project
-          </Link>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">{project.name} - Build Configuration</h1>
-              {project.visibility === 'private' ? (
-                <Lock className="w-5 h-5 text-gray-400" />
-              ) : (
-                <Globe className="w-5 h-5 text-gray-400" />
-              )}
-            </div>
-            <button
-              onClick={startBuild}
-              disabled={building}
-              className="btn-primary flex items-center gap-2"
-            >
-              {building ? (
-                <>
-                  <Loader className="w-4 h-4 animate-spin" />
-                  Starting Build...
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  Start Build
-                </>
-              )}
-            </button>
-          </div>
+            {building ? (
+              <>
+                <Loader className="w-4 h-4 animate-spin" />
+                Starting Build...
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4" />
+                Start Build
+              </>
+            )}
+          </button>
         </div>
       </div>
 
