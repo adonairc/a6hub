@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { buildsAPI } from '@/lib/api';
 import { Play, CheckCircle, XCircle, Clock, Loader } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useToolbar } from '../layout';
 
 interface LibreLaneFlowConfig {
   design_name: string;
@@ -48,6 +49,7 @@ const PDK_OPTIONS = [
 export default function BuildPage() {
   const params = useParams();
   const projectId = parseInt(params.id as string);
+  const { setToolbarActions } = useToolbar();
 
   const [config, setConfig] = useState<LibreLaneFlowConfig | null>(null);
   const [presets, setPresets] = useState<Record<string, BuildPreset>>({});
@@ -61,6 +63,29 @@ export default function BuildPage() {
     loadPresets();
     loadBuildStatus();
   }, [projectId]);
+
+  // Set toolbar actions
+  useEffect(() => {
+    setToolbarActions(
+      <button
+        onClick={startBuild}
+        disabled={building}
+        className="btn-primary flex items-center gap-2"
+      >
+        {building ? (
+          <>
+            <Loader className="w-4 h-4 animate-spin" />
+            Starting Build...
+          </>
+        ) : (
+          <>
+            <Play className="w-4 h-4" />
+            Start Build
+          </>
+        )}
+      </button>
+    );
+  }, [building]);
 
   const loadBuildConfig = async () => {
     try {
@@ -135,30 +160,6 @@ export default function BuildPage() {
 
   return (
     <div className="h-full bg-gray-50 overflow-auto">
-      {/* Toolbar */}
-      <div className="border-b border-gray-200 bg-white px-6 py-3 sticky top-0 z-10">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">ASIC Build Configuration</h2>
-          <button
-            onClick={startBuild}
-            disabled={building}
-            className="btn-primary flex items-center gap-2"
-          >
-            {building ? (
-              <>
-                <Loader className="w-4 h-4 animate-spin" />
-                Starting Build...
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                Start Build
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main configuration panel */}

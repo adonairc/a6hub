@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { projectsAPI, filesAPI } from '@/lib/api';
 import { Save, Trash2, AlertCircle, Globe, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useToolbar } from '../layout';
 
 interface Project {
   id: number;
@@ -19,6 +20,7 @@ export default function SettingsPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = parseInt(params.id as string);
+  const { setToolbarActions } = useToolbar();
 
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +37,20 @@ export default function SettingsPage() {
   useEffect(() => {
     loadProject();
   }, [projectId]);
+
+  // Set toolbar actions
+  useEffect(() => {
+    setToolbarActions(
+      <button
+        onClick={saveSettings}
+        disabled={saving}
+        className="btn-primary flex items-center gap-2"
+      >
+        <Save className="w-4 h-4" />
+        {saving ? 'Saving...' : 'Save Changes'}
+      </button>
+    );
+  }, [saving]);
 
   const loadProject = async () => {
     try {
@@ -80,7 +96,7 @@ export default function SettingsPage() {
     try {
       await projectsAPI.delete(projectId);
       toast.success('Project deleted');
-      router.push('/projects');
+      router.push('/dashboard');
     } catch (error) {
       toast.error('Failed to delete project');
     }
@@ -100,21 +116,6 @@ export default function SettingsPage() {
 
   return (
     <div className="h-full bg-gray-50 overflow-auto">
-      {/* Toolbar */}
-      <div className="border-b border-gray-200 bg-white px-6 py-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Project Settings</h2>
-          <button
-            onClick={saveSettings}
-            disabled={saving}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Save className="w-4 h-4" />
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
-      </div>
-
       <div className="max-w-4xl mx-auto p-6 space-y-6">
         {/* General Settings */}
         <div className="bg-white border border-gray-200 p-6">
