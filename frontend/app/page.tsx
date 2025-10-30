@@ -81,6 +81,46 @@ export default function Home() {
         </div>
       </section>
 
+            {/* Public Projects Section */}
+      <section className="bg-gray-50 py-20 md:py-32">
+        <div className="container mx-auto px-4">
+        <h2 className="text-4xl md:text-5xl font-bold text-center mb-4">
+          Explore Projects
+        </h2>
+        <p className="text-center text-gray-600 text-lg mb-12">
+          Discover popular chip designs from the community
+        </p>
+
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="text-gray-500">Loading projects...</div>
+          </div>
+        ) : publicProjects.length === 0 ? (
+          <div className="text-center text-gray-500 py-20">
+            No public projects yet. Be the first to share your design!
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            {publicProjects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onClick={() => setSelectedProject(project)}
+              />
+            ))}
+          </div>
+        )}
+        </div>
+      </section>
+
+      {/* Project Details Modal */}
+      {selectedProject && (
+        <ProjectModal
+          project={selectedProject}
+          onClose={() => setSelectedProject(null)}
+        />
+      )}
+
       {/* Features Section */}
       <section id="features" className="bg-black text-white py-20 md:py-32">
         <div className="container mx-auto px-4">
@@ -135,46 +175,6 @@ export default function Home() {
           />
         </div>
       </section>
-
-      {/* Public Projects Section */}
-      <section className="bg-gray-50 py-20 md:py-32">
-        <div className="container mx-auto px-4">
-        <h2 className="text-4xl md:text-5xl font-bold text-center mb-4">
-          Explore Public Projects
-        </h2>
-        <p className="text-center text-gray-600 text-lg mb-12">
-          Discover popular chip designs from the community
-        </p>
-
-        {loading ? (
-          <div className="flex justify-center items-center py-20">
-            <div className="text-gray-500">Loading projects...</div>
-          </div>
-        ) : publicProjects.length === 0 ? (
-          <div className="text-center text-gray-500 py-20">
-            No public projects yet. Be the first to share your design!
-          </div>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            {publicProjects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                onClick={() => setSelectedProject(project)}
-              />
-            ))}
-          </div>
-        )}
-        </div>
-      </section>
-
-      {/* Project Details Modal */}
-      {selectedProject && (
-        <ProjectModal
-          project={selectedProject}
-          onClose={() => setSelectedProject(null)}
-        />
-      )}
 
       {/* CTA Section */}
       <section className="bg-black text-white py-20 md:py-32">
