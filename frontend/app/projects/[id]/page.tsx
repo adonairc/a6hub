@@ -237,13 +237,13 @@ export default function DesignPage() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* New file modal */}
+          {/* New file modal */}
       {showNewFileModal && (
         <NewFileModal onClose={() => setShowNewFileModal(false)} onCreate={createFile} />
       )}
-    </div>
+      </div>
+
+    
   );
 }
 

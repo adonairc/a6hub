@@ -401,7 +401,7 @@ export default function BuildPage() {
                   )}
                   <Link
                     href={`/projects/${projectId}/jobs/${buildStatus.job_id}`}
-                    className="btn-secondary w-full text-center mt-4"
+                    className="mt-4 btn-secondary w-full text-center mt-4"
                   >
                     View Job Details
                   </Link>
