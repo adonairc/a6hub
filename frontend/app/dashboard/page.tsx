@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { useRouter } from 'next/navigation';
 import { projectsAPI } from '@/lib/api';
+
 import { FolderOpen, Plus, Lock, Globe, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -24,6 +26,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'my' | 'public'>('my');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -85,10 +88,10 @@ export default function DashboardPage() {
                 )}
               </button>
             </div>
-            <Link href="/projects/new" className="btn-primary flex items-center gap-2">
+            {/* <Link href="/projects/new" className="btn-primary flex items-center gap-2">
               <Plus className="w-4 h-4" />
               New Project
-            </Link>
+            </Link> */}
           </div>
         </div>
       </div>
@@ -126,7 +129,7 @@ export default function DashboardPage() {
                 : 'No public projects available'}
             </p>
             {activeTab === 'my' && !searchQuery && (
-              <Link href="/projects/new" className="btn-primary inline-flex items-center gap-2">
+              <Link onClick={() => setShowNewProjectModal(true)} className="btn-primary inline-flex items-center gap-2">
                 <Plus className="w-4 h-4" />
                 Create Project
               </Link>
@@ -161,6 +164,7 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+     
     </div>
   );
 }
