@@ -48,11 +48,11 @@ export default function DashboardLayout({
 
         <nav className="flex-1 p-4">
           <Link
-            href="/dashboard"
+            href="/"
             className="flex items-center gap-3 px-4 py-3 rounded hover:bg-gray-900 transition-colors mb-2"
           >
             <Home className="w-5 h-5" />
-            <span>Dashboard</span>
+            <span>Home</span>
           </Link>
 
           <div className="my-6">

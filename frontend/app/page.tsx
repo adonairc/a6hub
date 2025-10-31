@@ -40,25 +40,30 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-black">
-        <nav className="container bg-white  mx-auto px-4 py-4 flex items-center justify-between fixed">
-          <Link href="/" className="text-2xl font-bold tracking-tight">
-            a6hub
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/auth/login" className="px-4 py-2 hover:bg-gray-100 transition-colors">
-              Sign In
-            </Link>
-            <Link href="/auth/register" className="btn-primary">
-              Get Started
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <header className="fixed top-0 left-0 w-full z-50 bg-white border-b border-black shadow-sm">
+  <nav className="container mx-auto px-4 py-4 flex items-center justify-between">
+    <Link href="/" className="text-2xl font-bold tracking-tight">
+      a6hub
+    </Link>
+    <div className="flex items-center gap-4">
+      <Link href="/docs" className="px-4 py-2 hover:bg-gray-100 transition-colors">
+        Learn
+      </Link>
+      <Link href="/auth/login" className="px-4 py-2 hover:bg-gray-100 transition-colors">
+        Sign In
+      </Link>
+      <Link href="/auth/register" className="btn-primary">
+        Get Started
+      </Link>
+    </div>
+  </nav>
+</header>
 
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20 md:py-32">
-        <div className="max-w-4xl mx-auto text-center">
+
+<section className="relative pt-24 container mx-auto px-4 py-20 md:py-32 bg-[url('/images/hero-bg.jpg')] bg-cover bg-center">
+  {/* <div className="absolute inset-0 bg-black/50 z-0"></div> */}
+        <div className="relative z-10 max-w-4xl mx-auto  text-center">
           <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight">
             Design Chips
             <br />
