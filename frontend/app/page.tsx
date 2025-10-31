@@ -46,6 +46,9 @@ export default function Home() {
       a6hub
     </Link>
     <div className="flex items-center gap-4">
+      <Link href="/forum" className="px-4 py-2 hover:bg-gray-100 transition-colors">
+        Discussion
+      </Link>
       <Link href="/docs" className="px-4 py-2 hover:bg-gray-100 transition-colors">
         Learn
       </Link>
@@ -60,20 +63,20 @@ export default function Home() {
 </header>
 
       {/* Hero Section */}
-      <section className="relative pt-24 container mx-auto px-4 py-20 md:py-32 bg-[url('/images/hero-bg.jpg')] bg-cover bg-center">
-        {/* <div className="absolute inset-0 bg-black/50 z-0"></div> */}
-        <div className="relative z-10 max-w-4xl mx-auto text-center">
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight">
-            Design Chips
-            <br />
-            <span className="text-gray-600">In Your Browser</span>
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-600 mb-8 leading-relaxed">
-            Cloud-based platform for collaborative ASIC design.
-            <br />
-            From RTL to GDSII, all in one place.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+      <section className="relative pt-24 container mx-auto px-4 py-20 md:py-32 bg-[url('/images/hero-bg.png')] bg-cover bg-center">        <div className="relative z-10 max-w-4xl mx-auto text-center">
+          <div className="inline-block bg-white/80 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg">
+            <h1 className="text-5xl md:text-7xl font-bold mb-4 tracking-tight text-gray-900">
+              Design Chips
+              <br />
+              <span className="text-gray-600">In Your Browser</span>
+            </h1>
+            <p className="text-xl md:text-2xl text-gray-700 leading-relaxed">
+              Cloud-based platform for collaborative ASIC design.
+              <br />
+              From code to GDSII, all in one place.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-10">
             <Link href="/auth/register" className="btn-primary text-lg px-8 py-4 inline-flex items-center justify-center gap-2">
               Start Designing
               <ChevronRight className="w-5 h-5" />

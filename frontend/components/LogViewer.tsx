@@ -57,7 +57,7 @@ export default function LogViewer({ logs, title = 'Build Logs', autoScroll = tru
         }
 
         return (
-          <div key={index} className={`font-mono text-xs leading-relaxed ${className}`}>
+          <div key={index} className={`font-mono text-sm leading-relaxed ${className}`}>
             {line || '\u00A0'}
           </div>
         );
