@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { buildsAPI } from '@/lib/api';
@@ -58,35 +58,6 @@ export default function BuildPage() {
   const [building, setBuilding] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
 
-  useEffect(() => {
-    loadBuildConfig();
-    loadPresets();
-    loadBuildStatus();
-  }, [projectId]);
-
-  // Set toolbar actions
-  useEffect(() => {
-    setToolbarActions(
-      <button
-        onClick={startBuild}
-        disabled={building}
-        className="btn-primary flex items-center gap-2"
-      >
-        {building ? (
-          <>
-            <Loader className="w-4 h-4 animate-spin" />
-            Starting Build...
-          </>
-        ) : (
-          <>
-            <Play className="w-4 h-4" />
-            Start Build
-          </>
-        )}
-      </button>
-    );
-  }, [building]);
-
   const loadBuildConfig = async () => {
     try {
       const response = await buildsAPI.getConfig(projectId);
@@ -117,15 +88,13 @@ export default function BuildPage() {
     }
   };
 
-  const applyPreset = (presetKey: string) => {
-    const preset = presets[presetKey];
-    if (preset && config) {
-      setConfig({ ...config, ...preset.config });
-      toast.success(`Applied ${preset.name} preset`);
-    }
-  };
+  useEffect(() => {
+    loadBuildConfig();
+    loadPresets();
+    loadBuildStatus();
+  }, [projectId]);
 
-  const startBuild = async () => {
+  const startBuild = useCallback(async () => {
     if (!config) return;
 
     setBuilding(true);
@@ -138,7 +107,38 @@ export default function BuildPage() {
     } finally {
       setBuilding(false);
     }
+  }, [config, projectId]);
+
+  const applyPreset = (presetKey: string) => {
+    const preset = presets[presetKey];
+    if (preset && config) {
+      setConfig({ ...config, ...preset.config });
+      toast.success(`Applied ${preset.name} preset`);
+    }
   };
+
+  // Set toolbar actions
+  useEffect(() => {
+    setToolbarActions(
+      <button
+        onClick={startBuild}
+        disabled={building || !config}
+        className="btn-primary flex items-center gap-2"
+      >
+        {building ? (
+          <>
+            <Loader className="w-4 h-4 animate-spin" />
+            Starting Build...
+          </>
+        ) : (
+          <>
+            <Play className="w-4 h-4" />
+            Start Build
+          </>
+        )}
+      </button>
+    );
+  }, [startBuild, building, config, setToolbarActions]);
 
   const updateConfig = (updates: Partial<LibreLaneFlowConfig>) => {
     if (config) {
