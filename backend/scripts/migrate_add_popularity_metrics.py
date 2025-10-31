@@ -28,26 +28,40 @@ def run_migration():
     print(f"Database: {settings.DATABASE_URL.split('@')[-1] if '@' in settings.DATABASE_URL else 'local'}")
     print()
 
-    with engine.connect() as conn:
-        # Check if columns already exist
-        print("Checking if columns already exist...")
+    # Check if columns already exist using information_schema
+    print("Checking if columns already exist...")
 
-        try:
-            # Try to select the columns - if they exist, this will succeed
-            result = conn.execute(text("SELECT stars_count, views_count FROM projects LIMIT 1"))
+    with engine.connect() as conn:
+        # Query information_schema to check for columns (this won't fail/abort transaction)
+        check_query = text("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'projects'
+            AND column_name IN ('stars_count', 'views_count')
+        """)
+
+        result = conn.execute(check_query)
+        existing_columns = [row[0] for row in result]
+
+        if 'stars_count' in existing_columns and 'views_count' in existing_columns:
             print("✓ Columns already exist! No migration needed.")
             return True
-        except Exception:
-            # Columns don't exist, proceed with migration
-            print("✗ Columns not found. Proceeding with migration...")
 
+        if existing_columns:
+            print(f"⚠ Warning: Found existing columns: {existing_columns}")
+            print("✗ Partial migration detected. Please check database state.")
+            return False
+
+        print("✗ Columns not found. Proceeding with migration...")
+
+    # Run migration in a new connection with proper transaction handling
+    with engine.begin() as conn:
         try:
             print("\n1. Adding stars_count column...")
             conn.execute(text("""
                 ALTER TABLE projects
                 ADD COLUMN stars_count INTEGER NOT NULL DEFAULT 0
             """))
-            conn.commit()
             print("✓ stars_count column added successfully")
 
             print("\n2. Adding views_count column...")
@@ -55,7 +69,6 @@ def run_migration():
                 ALTER TABLE projects
                 ADD COLUMN views_count INTEGER NOT NULL DEFAULT 0
             """))
-            conn.commit()
             print("✓ views_count column added successfully")
 
             print("\n" + "=" * 60)
@@ -70,17 +83,21 @@ def run_migration():
 
         except Exception as e:
             print(f"\n✗ Migration failed: {e}")
-            print("\nRolling back changes...")
-            conn.rollback()
-            return False
+            print("\nTransaction will be rolled back automatically...")
+            raise
 
 if __name__ == "__main__":
     print()
-    success = run_migration()
-    print()
+    try:
+        success = run_migration()
+        print()
 
-    if success:
-        sys.exit(0)
-    else:
+        if success:
+            sys.exit(0)
+        else:
+            print("Migration failed. Please check the error messages above.")
+            sys.exit(1)
+    except Exception as e:
+        print()
         print("Migration failed. Please check the error messages above.")
         sys.exit(1)
