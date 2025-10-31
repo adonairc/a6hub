@@ -123,6 +123,7 @@ class LibreLaneBuildStatus(BaseModel):
     status: str
     progress: Optional[str] = None
     current_step: Optional[str] = None
+    progress_data: Optional[Dict[str, Any]] = None
     logs: Optional[str] = None
 
 

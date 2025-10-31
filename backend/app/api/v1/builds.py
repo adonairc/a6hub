@@ -243,20 +243,10 @@ async def get_build_status(
             detail="No build jobs found for this project"
         )
 
-    # Parse current step from logs if available
-    current_step = None
-    if latest_build.logs:
-        # Try to extract current step from logs
-        # This is a simple implementation - could be more sophisticated
-        log_lines = latest_build.logs.split('\n')
-        for line in reversed(log_lines):
-            if '===' in line:
-                current_step = line.strip('= \n')
-                break
-
     return LibreLaneBuildStatus(
         job_id=latest_build.id,
         status=latest_build.status.value,
-        current_step=current_step,
+        current_step=latest_build.current_step,
+        progress_data=latest_build.progress_data,
         logs=latest_build.logs
     )

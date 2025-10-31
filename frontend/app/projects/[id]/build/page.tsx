@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { buildsAPI } from '@/lib/api';
 import { Play, CheckCircle, XCircle, Clock, Loader } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useToolbar } from '../layout';
+import BuildProgress from '@/components/BuildProgress';
+import LogViewer from '@/components/LogViewer';
 
 interface LibreLaneFlowConfig {
   design_name: string;
@@ -34,7 +36,17 @@ interface BuildPreset {
 interface BuildStatus {
   job_id: number;
   status: string;
-  current_step?: string;
+  current_step?: string | null;
+  progress_data?: {
+    current_step: string;
+    progress_percent?: number;
+    completed_steps?: string[];
+    steps_info?: Array<{
+      name: string;
+      label: string;
+      description: string;
+    }>;
+  } | null;
   logs?: string;
 }
 
@@ -57,6 +69,7 @@ export default function BuildPage() {
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadBuildConfig = async () => {
     try {
@@ -93,6 +106,29 @@ export default function BuildPage() {
     loadPresets();
     loadBuildStatus();
   }, [projectId]);
+
+  // Poll for build status updates when build is running
+  useEffect(() => {
+    if (buildStatus && buildStatus.status === 'running') {
+      // Poll every 2 seconds during active build
+      pollingIntervalRef.current = setInterval(() => {
+        loadBuildStatus();
+      }, 2000);
+    } else {
+      // Clear polling when build is not running
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, [buildStatus?.status]);
 
   const startBuild = useCallback(async () => {
     if (!config) return;
@@ -378,34 +414,35 @@ export default function BuildPage() {
             </div>
           </div>
 
-          {/* Sidebar - Build status */}
+          {/* Sidebar - Build Progress */}
           <div className="space-y-6">
-            {/* Current status */}
-            {buildStatus && (
-              <div className="bg-white border border-gray-200 p-6">
-                <h2 className="text-lg font-semibold mb-4">Latest Build Status</h2>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Status</span>
-                    <StatusBadge status={buildStatus.status} />
-                  </div>
-                  <div className="flex items-center justify-between">
+            {buildStatus ? (
+              <>
+                {/* Build Progress Component */}
+                <BuildProgress
+                  status={buildStatus.status}
+                  currentStep={buildStatus.current_step}
+                  progressData={buildStatus.progress_data}
+                />
+
+                {/* Job Info Card */}
+                <div className="bg-white border border-gray-200 p-4">
+                  <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-600">Job ID</span>
                     <span className="text-sm font-mono">#{buildStatus.job_id}</span>
                   </div>
-                  {buildStatus.current_step && (
-                    <div className="mt-4 p-3 bg-gray-50 border border-gray-200">
-                      <div className="text-xs text-gray-600 mb-1">Current Step</div>
-                      <div className="text-sm font-medium">{buildStatus.current_step}</div>
-                    </div>
-                  )}
                   <Link
                     href={`/projects/${projectId}/jobs/${buildStatus.job_id}`}
-                    className="mt-4 btn-secondary w-full text-center mt-4"
+                    className="mt-4 btn-secondary w-full text-center text-sm"
                   >
                     View Job Details
                   </Link>
                 </div>
+              </>
+            ) : (
+              <div className="bg-white border border-gray-200 p-6 text-center text-gray-500">
+                <p className="mb-2">No build yet</p>
+                <p className="text-sm">Click &quot;Start Build&quot; to begin</p>
               </div>
             )}
 
@@ -425,6 +462,18 @@ export default function BuildPage() {
             </div>
           </div>
         </div>
+
+        {/* Logs Viewer - Full width section */}
+        {buildStatus && buildStatus.logs && (
+          <div className="mt-6">
+            <LogViewer
+              logs={buildStatus.logs}
+              title={`Build Logs - Job #${buildStatus.job_id}`}
+              autoScroll={buildStatus.status === 'running'}
+              maxHeight="600px"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

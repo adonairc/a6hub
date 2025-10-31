@@ -52,6 +52,10 @@ class Job(Base):
     logs = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
     artifacts_path = Column(String, nullable=True)  # Path in MinIO
+
+    # Progress tracking
+    current_step = Column(String, nullable=True)  # Current build step being executed
+    progress_data = Column(JSON, nullable=True)  # Structured progress info (steps completed, percentages, etc.)
     
     # Relationships
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)

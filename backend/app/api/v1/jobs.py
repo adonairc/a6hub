@@ -186,7 +186,9 @@ async def get_job_logs(
     return JobLogsResponse(
         job_id=job.id,
         logs=job.logs or "",
-        status=job.status
+        status=job.status,
+        current_step=job.current_step,
+        progress_data=job.progress_data
     )
 
 
