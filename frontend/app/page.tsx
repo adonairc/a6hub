@@ -60,10 +60,9 @@ export default function Home() {
 </header>
 
       {/* Hero Section */}
-
-<section className="relative pt-24 container mx-auto px-4 py-20 md:py-32 bg-[url('/images/hero-bg.jpg')] bg-cover bg-center">
-  {/* <div className="absolute inset-0 bg-black/50 z-0"></div> */}
-        <div className="relative z-10 max-w-4xl mx-auto  text-center">
+      <section className="relative pt-24 container mx-auto px-4 py-20 md:py-32 bg-[url('/images/hero-bg.jpg')] bg-cover bg-center">
+        {/* <div className="absolute inset-0 bg-black/50 z-0"></div> */}
+        <div className="relative z-10 max-w-4xl mx-auto text-center">
           <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight">
             Design Chips
             <br />

@@ -6,6 +6,7 @@ import { filesAPI } from '@/lib/api';
 import Editor from '@monaco-editor/react';
 import { FileCode, Plus, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useToolbar } from './layout';
 
 interface ProjectFile {
   id: number;
@@ -22,6 +23,7 @@ interface ProjectFileWithContent extends ProjectFile {
 export default function DesignPage() {
   const params = useParams();
   const projectId = parseInt(params.id as string);
+  const { setToolbarActions } = useToolbar();
 
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [activeFile, setActiveFile] = useState<ProjectFileWithContent | null>(null);
@@ -33,6 +35,20 @@ export default function DesignPage() {
   useEffect(() => {
     loadFiles();
   }, [projectId]);
+
+  // Set toolbar actions
+  useEffect(() => {
+    setToolbarActions(
+      <button
+        onClick={saveFile}
+        disabled={!activeFile || saving}
+        className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+      >
+        <Save className="w-4 h-4" />
+        {saving ? 'Saving...' : 'Save'}
+      </button>
+    );
+  }, [activeFile, saving, setToolbarActions]);
 
   const loadFiles = async () => {
     try {
@@ -112,26 +128,7 @@ export default function DesignPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Toolbar */}
-      <div className="border-b border-gray-200 bg-white px-6 py-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Design Editor</h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={saveFile}
-              disabled={!activeFile || saving}
-              className="btn-secondary flex items-center gap-2 disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
+    <div className="h-full flex overflow-hidden">
         {/* File tree */}
         <div className="w-64 border-r border-gray-200 bg-white overflow-auto">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
