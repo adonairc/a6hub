@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { Home, FolderOpen, Settings, LogOut, Plus } from 'lucide-react';
 import { projectsAPI } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 export default function DashboardLayout({
   children,
@@ -53,22 +54,15 @@ export default function DashboardLayout({
             <Home className="w-5 h-5" />
             <span>Dashboard</span>
           </Link>
-          <Link
-            href="/projects"
-            className="flex items-center gap-3 px-4 py-3 rounded hover:bg-gray-900 transition-colors mb-2"
-          >
-            <FolderOpen className="w-5 h-5" />
-            <span>Projects</span>
-          </Link>
-          
+
           <div className="my-6">
-            <Link href=""
-              className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded hover:bg-gray-100 transition-colors justify-center font-medium"
+            <button
+              onClick={() => setShowNewProjectModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded hover:bg-gray-100 transition-colors justify-center font-medium w-full"
             >
               <Plus className="w-4 h-4" />
-                <a onClick={() => setShowNewProjectModal(true)}>New Project</a>
-            </Link>
-             
+              <span>New Project</span>
+            </button>
           </div>
         </nav>
 
@@ -114,8 +108,7 @@ function NewProjectModal({
 }: {
   onClose: () => void;
 }) {
-
- const router = useRouter();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -129,6 +122,7 @@ function NewProjectModal({
     try {
       const response = await projectsAPI.create(formData);
       toast.success('Project created successfully!');
+      onClose();
       router.push(`/projects/${response.data.id}`);
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to create project');
@@ -138,15 +132,27 @@ function NewProjectModal({
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="border-b border-gray-200">
-        <div className="container mx-auto px-8 py-6">
-          <h1 className="text-3xl font-bold">Create New Project</h1>
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto border-2 border-black"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold">Create New Project</h1>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-black text-2xl font-bold leading-none"
+            >
+              ×
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="container mx-auto px-8 py-8">
-        <div className="max-w-2xl">
+        <div className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="name" className="block text-sm font-medium mb-2">
@@ -229,9 +235,13 @@ function NewProjectModal({
               >
                 {loading ? 'Creating...' : 'Create Project'}
               </button>
-              <button type="button" onClick={onClose} className="btn-secondary flex-1">
-              Cancel
-            </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-secondary px-8"
+              >
+                Cancel
+              </button>
             </div>
           </form>
         </div>
