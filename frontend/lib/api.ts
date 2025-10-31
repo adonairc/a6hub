@@ -124,3 +124,39 @@ export const buildsAPI = {
   getStatus: (projectId: number) =>
     api.get(`/api/v1/builds/${projectId}/build/status`),
 };
+
+// Forum API
+export const forumAPI = {
+  // Categories
+  listCategories: () =>
+    api.get('/api/v1/forum/categories'),
+
+  // Topics
+  createTopic: (data: { title: string; category_id: number; content: string }) =>
+    api.post('/api/v1/forum/topics', data),
+
+  listTopics: (categoryId: number, params?: { skip?: number; limit?: number }) =>
+    api.get(`/api/v1/forum/categories/${categoryId}/topics`, { params }),
+
+  getTopic: (topicId: number) =>
+    api.get(`/api/v1/forum/topics/${topicId}`),
+
+  updateTopic: (topicId: number, data: { title?: string; is_pinned?: boolean; is_locked?: boolean }) =>
+    api.put(`/api/v1/forum/topics/${topicId}`, data),
+
+  deleteTopic: (topicId: number) =>
+    api.delete(`/api/v1/forum/topics/${topicId}`),
+
+  // Posts
+  listPosts: (topicId: number, params?: { skip?: number; limit?: number }) =>
+    api.get(`/api/v1/forum/topics/${topicId}/posts`, { params }),
+
+  createPost: (topicId: number, data: { content: string }) =>
+    api.post(`/api/v1/forum/topics/${topicId}/posts`, data),
+
+  updatePost: (postId: number, data: { content: string }) =>
+    api.put(`/api/v1/forum/posts/${postId}`, data),
+
+  deletePost: (postId: number) =>
+    api.delete(`/api/v1/forum/posts/${postId}`),
+};
