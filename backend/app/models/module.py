@@ -51,8 +51,8 @@ class Module(Base):
     description = Column(Text, nullable=True)  # Extracted from comments/docstrings
 
     # Relationships
-    file_id = Column(Integer, ForeignKey("files.id", ondelete="CASCADE"), nullable=False)
-    file = relationship("File", back_populates="modules")
+    file_id = Column(Integer, ForeignKey("project_files.id", ondelete="CASCADE"), nullable=False)
+    file = relationship("ProjectFile", back_populates="modules")
 
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     project = relationship("Project", back_populates="modules")
