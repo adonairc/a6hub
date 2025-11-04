@@ -125,6 +125,33 @@ export const buildsAPI = {
     api.get(`/api/v1/builds/${projectId}/build/status`),
 };
 
+// Modules API
+export const modulesAPI = {
+  // List modules in a project
+  listModules: (projectId: number, params?: { module_type?: string; search?: string }) =>
+    api.get(`/api/v1/projects/${projectId}/modules`, { params }),
+
+  // Get module details
+  getModule: (projectId: number, moduleId: number) =>
+    api.get(`/api/v1/projects/${projectId}/modules/${moduleId}`),
+
+  // Update module
+  updateModule: (projectId: number, moduleId: number, data: { name?: string; description?: string; metadata?: any }) =>
+    api.put(`/api/v1/projects/${projectId}/modules/${moduleId}`, data),
+
+  // Delete module
+  deleteModule: (projectId: number, moduleId: number) =>
+    api.delete(`/api/v1/projects/${projectId}/modules/${moduleId}`),
+
+  // Re-parse all files in project
+  reparseProject: (projectId: number) =>
+    api.post(`/api/v1/projects/${projectId}/modules/reparse`),
+
+  // Parse specific file
+  parseFile: (projectId: number, fileId: number) =>
+    api.post(`/api/v1/projects/${projectId}/files/${fileId}/parse`),
+};
+
 // Forum API
 export const forumAPI = {
   // Categories

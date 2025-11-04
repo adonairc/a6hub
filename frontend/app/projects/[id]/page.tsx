@@ -7,6 +7,7 @@ import Editor from '@monaco-editor/react';
 import { FileCode, Plus, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useToolbar } from './layout';
+import ModulesSection from '@/components/ModulesSection';
 
 interface ProjectFile {
   id: number;
@@ -129,60 +130,56 @@ export default function DesignPage() {
 
   return (
     <div className="h-full flex overflow-hidden">
-        {/* File tree */}
-        <div className="w-64 border-r border-gray-200 bg-white overflow-auto">
-          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="font-semibold">Modules</h3>
-            <button
-              onClick={() => setShowNewFileModal(true)}
-              className="p-1 hover:bg-gray-100 rounded"
-              title="New file"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="p-2">
-            {files.length === 0 ? (
-              <div className="text-sm text-gray-500 p-4 text-center">
-                No files yet
-                <br />
-                <button
-                  onClick={() => setShowNewFileModal(true)}
-                  className="text-blue-600 hover:underline mt-2"
-                >
-                  Create your first file
-                </button>
-              </div>
-            ) : (
-              files.map((file) => (
-                <div
-                  key={file.id}
-                  className={`group px-3 py-2 rounded flex items-center justify-between hover:bg-gray-100 ${
-                    activeFile?.id === file.id ? 'bg-gray-100' : ''
-                  }`}
-                >
+        {/* File tree and Modules */}
+        <div className="w-80 border-r border-gray-200 bg-white overflow-auto flex flex-col">
+          {/* Files Section */}
+          <div className="border-b border-gray-200">
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="font-semibold">Files</h3>
+              <button
+                onClick={() => setShowNewFileModal(true)}
+                className="p-1 hover:bg-gray-100 rounded"
+                title="New file"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-2">
+              {files.length === 0 ? (
+                <div className="text-sm text-gray-500 p-4 text-center">
+                  No files yet
+                  <br />
                   <button
-                    onClick={() => openFile(file)}
-                    className="flex items-center gap-2 flex-1 text-left"
+                    onClick={() => setShowNewFileModal(true)}
+                    className="text-blue-600 hover:underline mt-2"
                   >
-                    <FileCode className="w-4 h-4 flex-shrink-0" />
-                    <span className="truncate text-sm">{file.filename}</span>
+                    Create your first file
                   </button>
                 </div>
-              ))
-            )}
+              ) : (
+                files.map((file) => (
+                  <div
+                    key={file.id}
+                    className={`group px-3 py-2 rounded flex items-center justify-between hover:bg-gray-100 ${
+                      activeFile?.id === file.id ? 'bg-gray-100' : ''
+                    }`}
+                  >
+                    <button
+                      onClick={() => openFile(file)}
+                      className="flex items-center gap-2 flex-1 text-left"
+                    >
+                      <FileCode className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate text-sm">{file.filename}</span>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        
-        
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="font-semibold">Macros</h3>
-            <button
-              onClick={() => setShowNewFileModal(true)}
-              className="p-1 hover:bg-gray-100 rounded"
-              title="New file"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+
+          {/* Modules Section */}
+          <div className="flex-1 overflow-hidden">
+            <ModulesSection projectId={projectId} />
           </div>
         </div>
 
