@@ -129,10 +129,10 @@ export default function DashboardPage() {
                 : 'No public projects available'}
             </p>
             {activeTab === 'my' && !searchQuery && (
-              <Link onClick={() => setShowNewProjectModal(true)} className="btn-primary inline-flex items-center gap-2">
+              <button onClick={() => setShowNewProjectModal(true)} className="btn-primary inline-flex items-center gap-2">
                 <Plus className="w-4 h-4" />
                 Create Project
-              </Link>
+              </button>
             )}
           </div>
         ) : (
