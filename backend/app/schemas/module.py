@@ -55,7 +55,7 @@ class ModuleCreate(BaseModel):
     """Schema for creating a new module"""
     name: str
     module_type: ModuleType
-    metadata: Optional[Dict[str, Any]] = None
+    module_metadata: Optional[Dict[str, Any]] = None
     start_line: Optional[int] = None
     end_line: Optional[int] = None
     description: Optional[str] = None
@@ -67,7 +67,7 @@ class ModuleCreate(BaseModel):
 class ModuleUpdate(BaseModel):
     """Schema for updating a module"""
     name: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    module_metadata: Optional[Dict[str, Any]] = None
     description: Optional[str] = None
 
 
@@ -77,7 +77,7 @@ class ModuleResponse(BaseModel):
     id: int
     name: str
     module_type: ModuleType
-    metadata: Optional[Dict[str, Any]] = None
+    module_metadata: Optional[Dict[str, Any]] = None
     start_line: Optional[int] = None
     end_line: Optional[int] = None
     description: Optional[str] = None

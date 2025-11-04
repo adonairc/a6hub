@@ -167,8 +167,8 @@ async def update_module(
     if module_update.description is not None:
         module.description = module_update.description
 
-    if module_update.metadata is not None:
-        module.metadata = module_update.metadata
+    if module_update.module_metadata is not None:
+        module.module_metadata = module_update.module_metadata
 
     db.commit()
     db.refresh(module)

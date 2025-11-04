@@ -41,7 +41,7 @@ class Module(Base):
     # Module metadata (JSON structure depends on type)
     # For Verilog: {ports: [{name, direction, width}], parameters: [...]}
     # For Python: {methods: [...], attributes: [...], docstring: "..."}
-    metadata = Column(JSON, nullable=True)
+    module_metadata = Column(JSON, nullable=True)
 
     # Source information
     start_line = Column(Integer, nullable=True)  # Line where module starts in file

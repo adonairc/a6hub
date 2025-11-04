@@ -95,7 +95,7 @@ class ModuleExtractor:
                     module = Module(
                         name=module_data["name"],
                         module_type=module_type,
-                        metadata=module_data.get("metadata"),
+                        module_metadata=module_data.get("metadata"),
                         start_line=module_data.get("start_line"),
                         end_line=module_data.get("end_line"),
                         description=module_data.get("description"),

@@ -11,7 +11,7 @@ interface Module {
   file_id: number;
   filename: string;
   filepath: string;
-  metadata: any;
+  module_metadata: any;
 }
 
 interface ModulesSectionProps {
@@ -92,15 +92,15 @@ export default function ModulesSection({ projectId }: ModulesSectionProps) {
   };
 
   const renderModuleMetadata = (module: Module) => {
-    if (!module.metadata) return null;
+    if (!module.module_metadata) return null;
 
     // Verilog module metadata
-    if (module.module_type === 'verilog_module' && module.metadata.ports) {
+    if (module.module_type === 'verilog_module' && module.module_metadata.ports) {
       return (
         <div className="mt-2 space-y-1 text-xs">
           <div className="font-semibold text-gray-700">Ports:</div>
           <div className="grid grid-cols-2 gap-1">
-            {module.metadata.ports.slice(0, 6).map((port: any, idx: number) => (
+            {module.module_metadata.ports.slice(0, 6).map((port: any, idx: number) => (
               <div key={idx} className="text-gray-600">
                 <span className="font-mono text-xs">
                   {port.direction === 'input' && <span className="text-blue-600">←</span>}
@@ -111,8 +111,8 @@ export default function ModulesSection({ projectId }: ModulesSectionProps) {
                 </span>
               </div>
             ))}
-            {module.metadata.ports.length > 6 && (
-              <div className="text-gray-500">+{module.metadata.ports.length - 6} more...</div>
+            {module.module_metadata.ports.length > 6 && (
+              <div className="text-gray-500">+{module.module_metadata.ports.length - 6} more...</div>
             )}
           </div>
         </div>
@@ -120,18 +120,18 @@ export default function ModulesSection({ projectId }: ModulesSectionProps) {
     }
 
     // Python class metadata
-    if (module.module_type === 'python_class' && module.metadata.methods) {
+    if (module.module_type === 'python_class' && module.module_metadata.methods) {
       return (
         <div className="mt-2 space-y-1 text-xs">
           <div className="font-semibold text-gray-700">Methods:</div>
           <div className="flex flex-wrap gap-1">
-            {module.metadata.methods.slice(0, 5).map((method: any, idx: number) => (
+            {module.module_metadata.methods.slice(0, 5).map((method: any, idx: number) => (
               <span key={idx} className="px-2 py-0.5 bg-gray-100 rounded text-gray-700 font-mono text-xs">
                 {method.name}()
               </span>
             ))}
-            {module.metadata.methods.length > 5 && (
-              <span className="px-2 py-0.5 text-gray-500">+{module.metadata.methods.length - 5} more</span>
+            {module.module_metadata.methods.length > 5 && (
+              <span className="px-2 py-0.5 text-gray-500">+{module.module_metadata.methods.length - 5} more</span>
             )}
           </div>
         </div>

@@ -41,7 +41,7 @@ def migrate():
                     id SERIAL PRIMARY KEY,
                     name VARCHAR NOT NULL,
                     module_type VARCHAR NOT NULL,
-                    metadata JSON,
+                    module_metadata JSON,
                     start_line INTEGER,
                     end_line INTEGER,
                     description TEXT,

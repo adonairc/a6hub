@@ -136,7 +136,7 @@ export const modulesAPI = {
     api.get(`/api/v1/projects/${projectId}/modules/${moduleId}`),
 
   // Update module
-  updateModule: (projectId: number, moduleId: number, data: { name?: string; description?: string; metadata?: any }) =>
+  updateModule: (projectId: number, moduleId: number, data: { name?: string; description?: string; module_metadata?: any }) =>
     api.put(`/api/v1/projects/${projectId}/modules/${moduleId}`, data),
 
   // Delete module
