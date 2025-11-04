@@ -20,6 +20,7 @@ from app.schemas.project import (
     ProjectFileWithContent
 )
 from app.services.module_extractor import module_extractor
+from app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
 
@@ -116,28 +117,57 @@ async def create_project_file(
     
     # Calculate file size
     size_bytes = len(file_data.content.encode('utf-8')) if file_data.content else 0
-    
+
     # Check file size limit
     if size_bytes > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File size exceeds maximum allowed ({settings.MAX_FILE_SIZE_MB}MB)"
         )
-    
-    # Create new file
+
+    # Create new file record (without content first, to get the ID)
     new_file = ProjectFile(
         filename=file_data.filename,
         filepath=file_data.filepath,
-        content=file_data.content,
         size_bytes=size_bytes,
         mime_type=file_data.mime_type,
         project_id=project_id,
-        use_minio=False  # Using legacy content storage for now
+        use_minio=True
     )
 
     db.add(new_file)
     db.commit()
     db.refresh(new_file)
+
+    # Upload content to MinIO if provided
+    if file_data.content:
+        try:
+            file_bytes = file_data.content.encode('utf-8')
+            bucket, key, content_hash = storage_service.upload_file(
+                file_bytes,
+                project_id,
+                new_file.id,
+                file_data.filename,
+                file_data.mime_type or "text/plain"
+            )
+
+            # Update file record with MinIO information
+            new_file.minio_bucket = bucket
+            new_file.minio_key = key
+            new_file.content_hash = content_hash
+            db.commit()
+            db.refresh(new_file)
+
+            logger.info(f"Uploaded file {file_data.filename} to MinIO: {key}")
+        except Exception as e:
+            logger.error(f"Error uploading file to MinIO: {e}")
+            # Rollback the file creation if upload fails
+            db.delete(new_file)
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to upload file to storage"
+            )
 
     # Extract modules from file content
     if file_data.content:
@@ -166,31 +196,44 @@ async def get_project_file(
 ):
     """
     Get file content
-    
+
     - Returns file with full content
     - User must have read access to project
     """
     project = db.query(Project).filter(Project.id == project_id).first()
-    
+
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found"
         )
-    
+
     check_project_access(project, current_user)
-    
+
     file = db.query(ProjectFile).filter(
         ProjectFile.id == file_id,
         ProjectFile.project_id == project_id
     ).first()
-    
+
     if not file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="File not found"
         )
-    
+
+    # If file uses MinIO, download content from there
+    if file.use_minio and file.minio_bucket and file.minio_key:
+        try:
+            file_bytes = storage_service.download_file(file.minio_bucket, file.minio_key)
+            file.content = file_bytes.decode('utf-8')
+            logger.debug(f"Downloaded file {file.filename} from MinIO")
+        except Exception as e:
+            logger.error(f"Error downloading file from MinIO: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve file content from storage"
+            )
+
     return file
 
 
@@ -232,8 +275,8 @@ async def update_project_file(
     # Update content if provided
     content_updated = False
     if file_data.content is not None:
-        file.content = file_data.content
-        file.size_bytes = len(file_data.content.encode('utf-8'))
+        file_bytes = file_data.content.encode('utf-8')
+        file.size_bytes = len(file_bytes)
         content_updated = True
 
         # Check file size limit
@@ -241,6 +284,32 @@ async def update_project_file(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"File size exceeds maximum allowed ({settings.MAX_FILE_SIZE_MB}MB)"
+            )
+
+        # Upload to MinIO
+        try:
+            bucket, key, content_hash = storage_service.upload_file(
+                file_bytes,
+                project_id,
+                file.id,
+                file.filename,
+                file.mime_type or "text/plain"
+            )
+
+            # Update file record with MinIO information
+            file.minio_bucket = bucket
+            file.minio_key = key
+            file.content_hash = content_hash
+            file.use_minio = True
+            # Clear legacy content field to save DB space
+            file.content = None
+
+            logger.info(f"Updated file {file.filename} in MinIO: {key}")
+        except Exception as e:
+            logger.error(f"Error uploading updated file to MinIO: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save file to storage"
             )
 
     # Update filename if provided
@@ -251,10 +320,10 @@ async def update_project_file(
     db.refresh(file)
 
     # Re-extract modules if content was updated
-    if content_updated and file.content:
+    if content_updated and file_data.content:
         try:
             result = module_extractor.extract_modules_from_file(
-                file.content,
+                file_data.content,
                 file.id,
                 project_id,
                 file.filename,
@@ -295,14 +364,23 @@ async def delete_project_file(
         ProjectFile.id == file_id,
         ProjectFile.project_id == project_id
     ).first()
-    
+
     if not file:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="File not found"
         )
-    
+
+    # Delete from MinIO if file uses it
+    if file.use_minio and file.minio_bucket and file.minio_key:
+        try:
+            storage_service.delete_file(file.minio_bucket, file.minio_key)
+            logger.info(f"Deleted file {file.filename} from MinIO: {file.minio_key}")
+        except Exception as e:
+            logger.error(f"Error deleting file from MinIO: {e}")
+            # Continue with DB deletion even if MinIO deletion fails
+
     db.delete(file)
     db.commit()
-    
+
     return None
