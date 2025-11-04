@@ -32,6 +32,17 @@ def migrate():
 
         modules_exists = conn.execute(check_modules_table).fetchone() is not None
 
+        # Check if old 'metadata' column exists (needs rename)
+        if modules_exists:
+            check_old_column = text("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name='modules' AND column_name='metadata'
+            """)
+            old_column_exists = conn.execute(check_old_column).fetchone() is not None
+        else:
+            old_column_exists = False
+
     # Perform migration in a transaction
     with engine.begin() as conn:
         if not modules_exists:
@@ -60,8 +71,15 @@ def migrate():
             conn.execute(text("CREATE INDEX ix_modules_project_id ON modules(project_id)"))
             conn.execute(text("CREATE INDEX ix_modules_module_type ON modules(module_type)"))
             print("   ✓ Created indexes")
+        elif old_column_exists:
+            print("\n1. Modules table exists with old 'metadata' column - renaming to 'module_metadata'...")
+            conn.execute(text("""
+                ALTER TABLE modules
+                RENAME COLUMN metadata TO module_metadata
+            """))
+            print("   ✓ Renamed metadata → module_metadata")
         else:
-            print("\n1. Modules table already exists - skipping creation")
+            print("\n1. Modules table already exists with correct schema - skipping")
 
         # Add MinIO fields to project_files if they don't exist
         print("\n3. Adding MinIO fields to project_files table...")
