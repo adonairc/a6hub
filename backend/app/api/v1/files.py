@@ -5,6 +5,7 @@ Handles file uploads, downloads, and management within projects
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
+import logging
 
 from app.core.security import get_current_user
 from app.core.config import settings
@@ -18,6 +19,9 @@ from app.schemas.project import (
     ProjectFileResponse,
     ProjectFileWithContent
 )
+from app.services.module_extractor import module_extractor
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -127,13 +131,29 @@ async def create_project_file(
         content=file_data.content,
         size_bytes=size_bytes,
         mime_type=file_data.mime_type,
-        project_id=project_id
+        project_id=project_id,
+        use_minio=False  # Using legacy content storage for now
     )
-    
+
     db.add(new_file)
     db.commit()
     db.refresh(new_file)
-    
+
+    # Extract modules from file content
+    if file_data.content:
+        try:
+            result = module_extractor.extract_modules_from_file(
+                file_data.content,
+                new_file.id,
+                project_id,
+                file_data.filename,
+                db
+            )
+            logger.info(f"Extracted {result.modules_found} modules from {file_data.filename}")
+        except Exception as e:
+            logger.error(f"Error extracting modules from {file_data.filename}: {e}")
+            # Don't fail the file creation if module extraction fails
+
     return new_file
 
 
@@ -210,24 +230,41 @@ async def update_project_file(
         )
     
     # Update content if provided
+    content_updated = False
     if file_data.content is not None:
         file.content = file_data.content
         file.size_bytes = len(file_data.content.encode('utf-8'))
-        
+        content_updated = True
+
         # Check file size limit
         if file.size_bytes > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"File size exceeds maximum allowed ({settings.MAX_FILE_SIZE_MB}MB)"
             )
-    
+
     # Update filename if provided
     if file_data.filename is not None:
         file.filename = file_data.filename
-    
+
     db.commit()
     db.refresh(file)
-    
+
+    # Re-extract modules if content was updated
+    if content_updated and file.content:
+        try:
+            result = module_extractor.extract_modules_from_file(
+                file.content,
+                file.id,
+                project_id,
+                file.filename,
+                db
+            )
+            logger.info(f"Re-extracted {result.modules_found} modules from {file.filename}")
+        except Exception as e:
+            logger.error(f"Error re-extracting modules from {file.filename}: {e}")
+            # Don't fail the file update if module extraction fails
+
     return file
 
 

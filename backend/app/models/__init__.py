@@ -6,6 +6,7 @@ from app.models.project import Project, ProjectVisibility
 from app.models.project_file import ProjectFile
 from app.models.job import Job, JobType, JobStatus
 from app.models.forum import ForumCategory, ForumTopic, ForumPost
+from app.models.module import Module, ModuleType
 
 __all__ = [
     "User",
@@ -18,4 +19,6 @@ __all__ = [
     "ForumCategory",
     "ForumTopic",
     "ForumPost",
+    "Module",
+    "ModuleType",
 ]

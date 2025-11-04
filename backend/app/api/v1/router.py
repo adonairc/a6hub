@@ -3,7 +3,7 @@ Main API router - combines all endpoint routers
 """
 from fastapi import APIRouter
 
-from app.api.v1 import auth, projects, files, jobs, builds, forum
+from app.api.v1 import auth, projects, files, jobs, builds, forum, modules
 
 api_router = APIRouter()
 
@@ -24,6 +24,12 @@ api_router.include_router(
     files.router,
     prefix="/projects",
     tags=["files"]
+)
+
+api_router.include_router(
+    modules.router,
+    prefix="/projects",
+    tags=["modules"]
 )
 
 api_router.include_router(
