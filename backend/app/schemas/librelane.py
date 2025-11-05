@@ -101,11 +101,14 @@ class LibreLaneFlowConfig(BaseModel):
     # Output options
     generate_final_summary: bool = Field(default=True, description="Generate final summary report")
 
-    # Docker options
-    use_docker: bool = Field(default=True, description="Run LibreLane in Docker container")
+    # Execution options
+    use_docker: bool = Field(
+        default=False,
+        description="Run in Docker container (False = use local LibreLane Python installation, recommended)"
+    )
     docker_image: str = Field(
         default="efabless/openlane:latest",
-        description="Docker image to use. Options: efabless/openlane:latest (OpenLane v1), ghcr.io/efabless/openlane2:2.3.1 (OpenLane 2)"
+        description="Docker image to use if use_docker=True. Options: efabless/openlane:latest, ghcr.io/efabless/openlane2:2.3.1"
     )
 
     # Advanced options
