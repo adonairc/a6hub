@@ -11,6 +11,7 @@ from app.workers.celery_app import celery_app
 from app.db.session import SessionLocal
 from app.models.job import Job, JobStatus
 from app.core.config import settings
+from app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +59,28 @@ def run_simulation(self, job_id: int):
         work_dir = Path(settings.STORAGE_BASE_PATH) / f"job_{job_id}"
         work_dir.mkdir(parents=True, exist_ok=True)
         
-        # Write project files to work directory
+        # Copy project files to work directory from MinIO or database
         for file in project.files:
             file_path = work_dir / file.filepath
             file_path.parent.mkdir(parents=True, exist_ok=True)
-            if file.content:
-                file_path.write_text(file.content)
+
+            try:
+                # Check if file is stored in MinIO
+                if file.use_minio and file.minio_bucket and file.minio_key:
+                    # Download from MinIO
+                    file_content = storage_service.download_file(file.minio_bucket, file.minio_key)
+                    file_path.write_bytes(file_content)
+                    logger.info(f"Copied {file.filepath} from MinIO: {file.minio_key}")
+                elif file.content:
+                    # Fall back to legacy content field
+                    file_path.write_text(file.content)
+                    logger.info(f"Copied {file.filepath} from database")
+                else:
+                    logger.warning(f"Skipping {file.filepath} - no content available")
+                    continue
+            except Exception as e:
+                logger.error(f"Failed to copy file {file.filepath}: {str(e)}")
+                raise Exception(f"Failed to copy file {file.filepath}: {str(e)}")
         
         # Determine simulator (Verilator or Icarus)
         simulator = config.get("simulator", "verilator")
@@ -318,15 +335,33 @@ def run_build(self, job_id: int):
         append_job_logs(self.db, job, config_log)
 
         # Write project files to design directory
-        logs.append("Writing design files...\n")
+        logs.append("Copying project files from storage...\n")
         written_files = []
         for file in project.files:
             file_path = design_dir / file.filepath
             file_path.parent.mkdir(parents=True, exist_ok=True)
-            if file.content:
-                file_path.write_text(file.content)
+
+            try:
+                # Check if file is stored in MinIO
+                if file.use_minio and file.minio_bucket and file.minio_key:
+                    # Download from MinIO
+                    file_content = storage_service.download_file(file.minio_bucket, file.minio_key)
+                    file_path.write_bytes(file_content)
+                    logs.append(f"  - {file.filepath} (from MinIO: {file.minio_key})\n")
+                elif file.content:
+                    # Fall back to legacy content field
+                    file_path.write_text(file.content)
+                    logs.append(f"  - {file.filepath} (from database)\n")
+                else:
+                    logs.append(f"  ! Skipping {file.filepath} (no content available)\n")
+                    continue
+
                 written_files.append(file.filepath)
-                logs.append(f"  - {file.filepath}\n")
+
+            except Exception as e:
+                error_msg = f"Failed to copy file {file.filepath}: {str(e)}"
+                logs.append(f"  ! {error_msg}\n")
+                logger.error(error_msg)
 
         if not written_files:
             raise Exception("No files found in project. Please upload design files before starting a build.")
