@@ -47,7 +47,7 @@ class LibreLaneFlowConfig(BaseModel):
 
     # Design basics
     design_name: str = Field(..., description="Top module name")
-    verilog_files: List[str] = Field(..., description="List of Verilog source files")
+    verilog_files: List[str] = Field(default=[], description="List of Verilog source files (auto-detected if empty)")
 
     # PDK Configuration
     pdk: PDKType = Field(default=PDKType.SKY130_HD, description="Process Design Kit")

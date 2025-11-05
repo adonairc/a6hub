@@ -118,7 +118,7 @@ Updated project page tabs to include functional "Build" link that navigates to t
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `design_name` | string | (required) | Top module name |
-| `verilog_files` | list | (required) | List of Verilog source files |
+| `verilog_files` | list | [] | List of Verilog source files (auto-detected if empty) |
 | `pdk` | enum | sky130_fd_sc_hd | Process Design Kit |
 | `clock_period` | string | "10" | Clock period in nanoseconds |
 | `clock_port` | string | "clk" | Clock port name |
@@ -229,11 +229,20 @@ LibreLane generates the following in `runs/RUN_<timestamp>/`:
 - **Netlists**: Post-synthesis/PnR netlists
 - **LEF/DEF**: Physical design data
 
+## File Auto-Detection
+
+When `verilog_files` is not specified or is empty, the system automatically detects all Verilog-related files in the project:
+- `.v` - Verilog files
+- `.sv` - SystemVerilog files
+- `.vh` - Verilog header files
+
+All detected files are included in the build by default, ensuring no source files are accidentally omitted.
+
 ## Error Handling
 
 The system handles:
 - **Timeout**: Builds exceeding `WORKER_TIMEOUT` (3600s default)
-- **Missing files**: Validates project has Verilog files
+- **Missing files**: Validates project has files and detects Verilog sources automatically
 - **Docker errors**: Captures stderr and exit codes
 - **Permission errors**: Checks project ownership
 

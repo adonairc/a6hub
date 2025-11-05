@@ -153,11 +153,13 @@ async def get_build_config(
         return LibreLaneFlowConfig(**last_build.config)
     else:
         # Return default configuration with project-specific values
-        verilog_files = [f.filepath for f in project.files if f.filepath.endswith('.v')]
+        # Auto-detect all Verilog/SystemVerilog files
+        verilog_extensions = ('.v', '.sv', '.vh')
+        verilog_files = [f.filepath for f in project.files if f.filepath.endswith(verilog_extensions)]
 
         return LibreLaneFlowConfig(
             design_name=project.name,
-            verilog_files=verilog_files or ["design.v"],
+            verilog_files=verilog_files,  # Empty list will trigger auto-detection in worker
         )
 
 

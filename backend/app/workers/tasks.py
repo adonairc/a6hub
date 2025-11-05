@@ -329,11 +329,15 @@ def run_build(self, job_id: int):
                 logs.append(f"  - {file.filepath}\n")
 
         if not written_files:
-            raise Exception("No Verilog files found in project")
+            raise Exception("No files found in project. Please upload design files before starting a build.")
 
-        # If no verilog_files specified, use all .v files
+        # If no verilog_files specified, auto-detect all Verilog/SystemVerilog files
         if not verilog_files:
-            verilog_files = [f for f in written_files if f.endswith('.v')]
+            verilog_extensions = ('.v', '.sv', '.vh')
+            verilog_files = [f for f in written_files if f.endswith(verilog_extensions)]
+            if not verilog_files:
+                raise Exception(f"No Verilog files found in project. Expected files with extensions: {', '.join(verilog_extensions)}")
+            logs.append(f"Auto-detected Verilog files: {', '.join(verilog_files)}\n")
 
         logs.append(f"\nVerilog files for synthesis: {', '.join(verilog_files)}\n\n")
 
