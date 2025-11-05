@@ -72,18 +72,28 @@ export const projectsAPI = {
 export const filesAPI = {
   list: (projectId: number) =>
     api.get(`/api/v1/projects/${projectId}/files`),
-  
+
   get: (projectId: number, fileId: number) =>
     api.get(`/api/v1/projects/${projectId}/files/${fileId}`),
-  
+
   create: (projectId: number, data: { filename: string; filepath: string; content?: string; mime_type?: string }) =>
     api.post(`/api/v1/projects/${projectId}/files`, data),
-  
+
   update: (projectId: number, fileId: number, data: { content?: string; filename?: string }) =>
     api.put(`/api/v1/projects/${projectId}/files/${fileId}`, data),
-  
+
   delete: (projectId: number, fileId: number) =>
     api.delete(`/api/v1/projects/${projectId}/files/${fileId}`),
+
+  upload: (projectId: number, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/api/v1/projects/${projectId}/files/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };
 
 // Jobs API

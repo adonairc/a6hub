@@ -338,6 +338,128 @@ async def update_project_file(
     return file
 
 
+@router.post("/{project_id}/files/upload", response_model=ProjectFileResponse, status_code=status.HTTP_201_CREATED)
+async def upload_project_file(
+    project_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload a file from local computer
+
+    - Accepts file upload from multipart/form-data
+    - Automatically extracts modules from Verilog files
+    - Only project owner can upload files
+    """
+    project = db.query(Project).filter(Project.id == project_id).first()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+
+    check_project_access(project, current_user, write_access=True)
+
+    # Determine filepath - use src/ directory by default
+    filename = file.filename or "untitled.v"
+    filepath = f"src/{filename}"
+
+    # Check if file already exists
+    existing_file = db.query(ProjectFile).filter(
+        ProjectFile.project_id == project_id,
+        ProjectFile.filepath == filepath
+    ).first()
+
+    if existing_file:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File already exists at {filepath}. Please delete it first or rename the file."
+        )
+
+    # Read file content
+    try:
+        file_bytes = await file.read()
+    except Exception as e:
+        logger.error(f"Error reading uploaded file: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to read uploaded file"
+        )
+
+    # Check file size limit
+    size_bytes = len(file_bytes)
+    if size_bytes > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File size exceeds maximum allowed ({settings.MAX_FILE_SIZE_MB}MB)"
+        )
+
+    # Determine MIME type
+    mime_type = file.content_type or "text/plain"
+
+    # Create new file record
+    new_file = ProjectFile(
+        filename=filename,
+        filepath=filepath,
+        size_bytes=size_bytes,
+        mime_type=mime_type,
+        project_id=project_id,
+        use_minio=True
+    )
+
+    db.add(new_file)
+    db.commit()
+    db.refresh(new_file)
+
+    # Upload content to MinIO
+    try:
+        bucket, key, content_hash = storage_service.upload_file(
+            file_bytes,
+            project_id,
+            new_file.id,
+            filename,
+            mime_type
+        )
+
+        # Update file record with MinIO information
+        new_file.minio_bucket = bucket
+        new_file.minio_key = key
+        new_file.content_hash = content_hash
+        db.commit()
+        db.refresh(new_file)
+
+        logger.info(f"Uploaded file {filename} to MinIO: {key}")
+    except Exception as e:
+        logger.error(f"Error uploading file to MinIO: {e}")
+        # Rollback the file creation if upload fails
+        db.delete(new_file)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload file to storage"
+        )
+
+    # Extract modules from Verilog files
+    if filename.endswith(('.v', '.sv', '.vh')):
+        try:
+            content_str = file_bytes.decode('utf-8')
+            result = module_extractor.extract_modules_from_file(
+                content_str,
+                new_file.id,
+                project_id,
+                filename,
+                db
+            )
+            logger.info(f"Extracted {result.modules_found} modules from {filename}")
+        except Exception as e:
+            logger.error(f"Error extracting modules from {filename}: {e}")
+            # Don't fail the upload if module extraction fails
+
+    return new_file
+
+
 @router.delete("/{project_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project_file(
     project_id: int,
@@ -347,20 +469,20 @@ async def delete_project_file(
 ):
     """
     Delete file
-    
+
     - Permanently removes file from project
     - Only project owner can delete files
     """
     project = db.query(Project).filter(Project.id == project_id).first()
-    
+
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found"
         )
-    
+
     check_project_access(project, current_user, write_access=True)
-    
+
     file = db.query(ProjectFile).filter(
         ProjectFile.id == file_id,
         ProjectFile.project_id == project_id

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { filesAPI } from '@/lib/api';
 import Editor from '@monaco-editor/react';
-import { FileCode, Plus, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileCode, Plus, Save, ChevronDown, ChevronUp, Trash2, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useToolbar } from './layout';
 import ModulesSection from '@/components/ModulesSection';
@@ -34,6 +34,8 @@ export default function DesignPage() {
   const [saving, setSaving] = useState(false);
   const [showNewFileModal, setShowNewFileModal] = useState(false);
   const [showModules, setShowModules] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadFiles();
@@ -108,8 +110,8 @@ export default function DesignPage() {
     }
   };
 
-  const deleteFile = async (fileId: number) => {
-    if (!confirm('Are you sure you want to delete this file?')) return;
+  const deleteFile = async (fileId: number, filename: string) => {
+    if (!confirm(`Are you sure you want to delete "${filename}"? This action cannot be undone.`)) return;
 
     try {
       await filesAPI.delete(projectId, fileId);
@@ -121,6 +123,30 @@ export default function DesignPage() {
       toast.success('File deleted');
     } catch (error) {
       toast.error('Failed to delete file');
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      await filesAPI.upload(projectId, file);
+      await loadFiles();
+      toast.success(`${file.name} uploaded successfully`);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to upload file');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -168,14 +194,32 @@ export default function DesignPage() {
         <div className="w-64 border-r border-gray-200 bg-white overflow-auto">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h3 className="font-semibold">Files</h3>
-            <button
-              onClick={() => setShowNewFileModal(true)}
-              className="p-1 hover:bg-gray-100 rounded"
-              title="New file"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+            <div className="flex gap-1">
+              <button
+                onClick={handleUploadClick}
+                disabled={uploading}
+                className="p-1 hover:bg-gray-100 rounded disabled:opacity-50"
+                title="Upload file"
+              >
+                <Upload className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setShowNewFileModal(true)}
+                className="p-1 hover:bg-gray-100 rounded"
+                title="New file"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
           </div>
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileUpload}
+            className="hidden"
+            accept=".v,.sv,.vh,.verilog,.systemverilog"
+          />
           <div className="p-2">
             {files.length === 0 ? (
               <div className="text-sm text-gray-500 p-4 text-center">
@@ -198,10 +242,20 @@ export default function DesignPage() {
                 >
                   <button
                     onClick={() => openFile(file)}
-                    className="flex items-center gap-2 flex-1 text-left"
+                    className="flex items-center gap-2 flex-1 text-left min-w-0"
                   >
                     <FileCode className="w-4 h-4 flex-shrink-0" />
                     <span className="truncate text-sm">{file.filename}</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteFile(file.id, file.filename);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-opacity flex-shrink-0"
+                    title="Delete file"
+                  >
+                    <Trash2 className="w-3 h-3 text-red-600" />
                   </button>
                 </div>
               ))
