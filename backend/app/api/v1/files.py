@@ -222,7 +222,8 @@ async def get_project_file(
         )
 
     # If file uses MinIO, download content from there
-    if file.use_minio and file.minio_bucket and file.minio_key:
+    # if file.use_minio and file.minio_bucket and file.minio_key:
+    if file.minio_bucket and file.minio_key:
         try:
             file_bytes = storage_service.download_file(file.minio_bucket, file.minio_key)
             file.content = file_bytes.decode('utf-8')
@@ -233,7 +234,7 @@ async def get_project_file(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to retrieve file content from storage"
             )
-
+    print("File = ",file.content)
     return file
 
 
