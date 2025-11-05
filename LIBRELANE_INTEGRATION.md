@@ -46,11 +46,13 @@ Enhanced `run_build` task that:
 docker run --rm \
   -v /work:/work \
   -w /work \
-  ghcr.io/librelane/librelane:latest \
+  efabless/openlane:latest \
   --dockerized \
   --pdk-root=/root/.ciel \
   /work/config.json
 ```
+
+**Note:** The default Docker image is `efabless/openlane:latest` (OpenLane v1). For other options, see `backend/OPENLANE_DOCKER_SETUP.md`.
 
 #### 3. Build API Endpoints (`app/api/v1/builds.py`)
 
@@ -154,7 +156,7 @@ Updated project page tabs to include functional "Build" link that navigates to t
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `use_docker` | bool | true | Run in Docker container |
-| `docker_image` | string | ghcr.io/librelane/librelane:latest | Docker image to use |
+| `docker_image` | string | efabless/openlane:latest | Docker image to use (see OPENLANE_DOCKER_SETUP.md for alternatives) |
 
 ## Usage Example
 

@@ -332,7 +332,7 @@ def run_build(self, job_id: int):
         # Use 'or []' to handle None values (when explicitly set to null in config)
         verilog_files = config.get("verilog_files") or []
         use_docker = config.get("use_docker", True)
-        docker_image = config.get("docker_image", "ghcr.io/librelane/librelane:latest")
+        docker_image = config.get("docker_image", "efabless/openlane:latest")
 
         config_log = f"Configuration:\n"
         config_log += f"  Design: {design_name}\n"

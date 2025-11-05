@@ -103,7 +103,10 @@ class LibreLaneFlowConfig(BaseModel):
 
     # Docker options
     use_docker: bool = Field(default=True, description="Run LibreLane in Docker container")
-    docker_image: str = Field(default="ghcr.io/librelane/librelane:latest", description="Docker image to use")
+    docker_image: str = Field(
+        default="efabless/openlane:latest",
+        description="Docker image to use. Options: efabless/openlane:latest (OpenLane v1), ghcr.io/efabless/openlane2:2.3.1 (OpenLane 2)"
+    )
 
     # Advanced options
     extra_args: Optional[Dict[str, Any]] = Field(None, description="Additional LibreLane arguments")
