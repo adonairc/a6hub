@@ -60,6 +60,13 @@ def run_simulation(self, job_id: int):
         work_dir.mkdir(parents=True, exist_ok=True)
         
         # Copy project files to work directory from MinIO or database
+        # Ensure project.files is not None (SQLAlchemy relationship could return None)
+        if project.files is None:
+            raise Exception("Project files relationship is None. Database session may be misconfigured.")
+
+        if not project.files:
+            raise Exception("Project has no files. Please upload design files before starting a simulation.")
+
         for file in project.files:
             file_path = work_dir / file.filepath
             file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -339,7 +346,10 @@ def run_build(self, job_id: int):
         logs.append("Copying project files from storage...\n")
         written_files = []
 
-        # Ensure project.files is not None
+        # Ensure project.files is not None (SQLAlchemy relationship could return None)
+        if project.files is None:
+            raise Exception("Project files relationship is None. Database session may be misconfigured.")
+
         if not project.files:
             raise Exception("Project has no files. Please upload design files before starting a build.")
 
@@ -409,7 +419,7 @@ def run_build(self, job_id: int):
             librelane_config["CORE_AREA"] = config["core_area"]
 
         # Add extra args if provided
-        if "extra_args" in config:
+        if "extra_args" in config and config["extra_args"]:
             librelane_config.update(config["extra_args"])
 
         # Write config.json
