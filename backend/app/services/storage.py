@@ -20,14 +20,31 @@ class StorageService:
 
     def __init__(self):
         """Initialize MinIO client"""
-        self.client = Minio(
-            settings.MINIO_ENDPOINT,
-            access_key=settings.MINIO_ACCESS_KEY,
-            secret_key=settings.MINIO_SECRET_KEY,
-            secure=settings.MINIO_SECURE
-        )
+        self._client = None
         self.files_bucket = settings.MINIO_FILES_BUCKET
-        self._ensure_bucket_exists()
+
+    @property
+    def client(self):
+        """Lazy initialization of MinIO client"""
+        if self._client is None:
+            try:
+                self._client = Minio(
+                    settings.MINIO_ENDPOINT,
+                    access_key=settings.MINIO_ACCESS_KEY,
+                    secret_key=settings.MINIO_SECRET_KEY,
+                    secure=settings.MINIO_SECURE
+                )
+                self._ensure_bucket_exists()
+                logger.info(f"Connected to MinIO at {settings.MINIO_ENDPOINT}")
+            except Exception as e:
+                logger.error(
+                    f"Failed to connect to MinIO at {settings.MINIO_ENDPOINT}: {e}\n"
+                    f"Make sure MinIO is running and accessible. "
+                    f"In Docker: set MINIO_ENDPOINT=minio:9000. "
+                    f"Locally: set MINIO_ENDPOINT=localhost:9000"
+                )
+                raise
+        return self._client
 
     def _ensure_bucket_exists(self):
         """Ensure the files bucket exists"""
