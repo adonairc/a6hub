@@ -322,7 +322,8 @@ def run_build(self, job_id: int):
         # Extract LibreLane configuration
         design_name = config.get("design_name", project.name)
         pdk = config.get("pdk", "sky130_fd_sc_hd")
-        verilog_files = config.get("verilog_files", [])
+        # Use 'or []' to handle None values (when explicitly set to null in config)
+        verilog_files = config.get("verilog_files") or []
         use_docker = config.get("use_docker", True)
         docker_image = config.get("docker_image", "ghcr.io/librelane/librelane:latest")
 
@@ -337,6 +338,11 @@ def run_build(self, job_id: int):
         # Write project files to design directory
         logs.append("Copying project files from storage...\n")
         written_files = []
+
+        # Ensure project.files is not None
+        if not project.files:
+            raise Exception("Project has no files. Please upload design files before starting a build.")
+
         for file in project.files:
             file_path = design_dir / file.filepath
             file_path.parent.mkdir(parents=True, exist_ok=True)
