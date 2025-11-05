@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { buildsAPI } from '@/lib/api';
+import { buildsAPI, modulesAPI } from '@/lib/api';
 import { Play, CheckCircle, XCircle, Clock, Loader } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useToolbar } from '../layout';
@@ -58,6 +58,7 @@ const PDK_OPTIONS = [
   { value: 'gf180mcuC', label: 'GF180MCU' },
 ];
 
+
 export default function BuildPage() {
   const params = useParams();
   const projectId = parseInt(params.id as string);
@@ -66,6 +67,7 @@ export default function BuildPage() {
   const [config, setConfig] = useState<LibreLaneFlowConfig | null>(null);
   const [presets, setPresets] = useState<Record<string, BuildPreset>>({});
   const [buildStatus, setBuildStatus] = useState<BuildStatus | null>(null);
+  const [modules, setModules] = useState(null)
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
@@ -101,8 +103,18 @@ export default function BuildPage() {
     }
   };
 
+  const loadModules = async () => {
+    try {
+      const response = await modulesAPI.listModules(projectId);
+      setModules(response.data);
+    } catch (error) {
+      setModules(null)
+    }
+  }
+
   useEffect(() => {
     loadBuildConfig();
+    loadModules();
     loadPresets();
     loadBuildStatus();
   }, [projectId]);
@@ -247,15 +259,26 @@ export default function BuildPage() {
               <div className="p-6">
                 {activeTab === 'basic' ? (
                   <div className="space-y-4">
-                    {/* Design name */}
+                    {/* Top Module */}
                     <div>
-                      <label className="block text-sm font-medium mb-2">Design Name</label>
-                      <input
+                      <label className="block text-sm font-medium mb-2">Top Module</label>
+                      {/* <input
                         type="text"
                         className="input"
                         value={config.design_name}
                         onChange={(e) => updateConfig({ design_name: e.target.value })}
-                      />
+                      /> */}
+                      <select
+                        className="input"
+                        value={config.design_name}
+                        onChange={(e) => updateConfig({ design_name: e.target.value })}
+                      >
+                        (modules && {modules.map((module) => (
+                          <option key={module.name} value={module.name}>
+                            {module.name}
+                          </option>
+                        ))})
+                      </select>
                     </div>
 
                     {/* PDK Selection */}
