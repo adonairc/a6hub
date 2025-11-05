@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { filesAPI } from '@/lib/api';
 import Editor from '@monaco-editor/react';
-import { FileCode, Plus, Save } from 'lucide-react';
+import { FileCode, Plus, Save, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useToolbar } from './layout';
 import ModulesSection from '@/components/ModulesSection';
@@ -25,6 +25,7 @@ export default function DesignPage() {
   const params = useParams();
   const projectId = parseInt(params.id as string);
   const { setToolbarActions } = useToolbar();
+  const editorRef = useRef<any>(null);
 
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [activeFile, setActiveFile] = useState<ProjectFileWithContent | null>(null);
@@ -32,10 +33,27 @@ export default function DesignPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showNewFileModal, setShowNewFileModal] = useState(false);
+  const [showModules, setShowModules] = useState(true);
 
   useEffect(() => {
     loadFiles();
   }, [projectId]);
+
+  // Use useCallback to prevent stale closures
+  const saveFile = useCallback(async () => {
+    if (!activeFile) return;
+
+    setSaving(true);
+    try {
+      await filesAPI.update(projectId, activeFile.id, { content: editorContent });
+      toast.success('File saved');
+    } catch (error) {
+      toast.error('Failed to save file');
+      console.error('Save error:', error);
+    } finally {
+      setSaving(false);
+    }
+  }, [projectId, activeFile, editorContent]);
 
   // Set toolbar actions
   useEffect(() => {
@@ -49,7 +67,7 @@ export default function DesignPage() {
         {saving ? 'Saving...' : 'Save'}
       </button>
     );
-  }, [activeFile, saving, setToolbarActions]);
+  }, [activeFile, saving, saveFile, setToolbarActions]);
 
   const loadFiles = async () => {
     try {
@@ -70,20 +88,6 @@ export default function DesignPage() {
       setEditorContent(fileWithContent.content || '');
     } catch (error) {
       toast.error('Failed to open file');
-    }
-  };
-
-  const saveFile = async () => {
-    if (!activeFile) return;
-
-    setSaving(true);
-    try {
-      await filesAPI.update(projectId, activeFile.id, { content: editorContent });
-      toast.success('File saved');
-    } catch (error) {
-      toast.error('Failed to save file');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -120,6 +124,35 @@ export default function DesignPage() {
     }
   };
 
+  const handleModuleClick = useCallback((fileId: number, startLine: number | null) => {
+    // Find and open the file if not already open
+    const file = files.find(f => f.id === fileId);
+    if (!file) return;
+
+    const navigateToLine = () => {
+      if (startLine && editorRef.current) {
+        // Navigate to the line in the editor
+        editorRef.current.revealLineInCenter(startLine);
+        editorRef.current.setPosition({ lineNumber: startLine, column: 1 });
+        editorRef.current.focus();
+      }
+    };
+
+    if (activeFile?.id !== fileId) {
+      // Open file first, then navigate
+      openFile(file).then(() => {
+        setTimeout(navigateToLine, 100); // Small delay for editor to render
+      });
+    } else {
+      // File already open, just navigate
+      navigateToLine();
+    }
+  }, [files, activeFile, openFile]);
+
+  const handleEditorMount = (editor: any) => {
+    editorRef.current = editor;
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -129,61 +162,53 @@ export default function DesignPage() {
   }
 
   return (
-    <div className="h-full flex overflow-hidden">
-        {/* File tree and Modules */}
-        <div className="w-80 border-r border-gray-200 bg-white overflow-auto flex flex-col">
-          {/* Files Section */}
-          <div className="border-b border-gray-200">
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="font-semibold">Files</h3>
-              <button
-                onClick={() => setShowNewFileModal(true)}
-                className="p-1 hover:bg-gray-100 rounded"
-                title="New file"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-2">
-              {files.length === 0 ? (
-                <div className="text-sm text-gray-500 p-4 text-center">
-                  No files yet
-                  <br />
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="flex-1 flex overflow-hidden">
+        {/* File tree */}
+        <div className="w-64 border-r border-gray-200 bg-white overflow-auto">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="font-semibold">Files</h3>
+            <button
+              onClick={() => setShowNewFileModal(true)}
+              className="p-1 hover:bg-gray-100 rounded"
+              title="New file"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-2">
+            {files.length === 0 ? (
+              <div className="text-sm text-gray-500 p-4 text-center">
+                No files yet
+                <br />
+                <button
+                  onClick={() => setShowNewFileModal(true)}
+                  className="text-blue-600 hover:underline mt-2"
+                >
+                  Create your first file
+                </button>
+              </div>
+            ) : (
+              files.map((file) => (
+                <div
+                  key={file.id}
+                  className={`group px-3 py-2 rounded flex items-center justify-between hover:bg-gray-100 ${
+                    activeFile?.id === file.id ? 'bg-gray-100' : ''
+                  }`}
+                >
                   <button
-                    onClick={() => setShowNewFileModal(true)}
-                    className="text-blue-600 hover:underline mt-2"
+                    onClick={() => openFile(file)}
+                    className="flex items-center gap-2 flex-1 text-left"
                   >
-                    Create your first file
+                    <FileCode className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate text-sm">{file.filename}</span>
                   </button>
                 </div>
-              ) : (
-                files.map((file) => (
-                  <div
-                    key={file.id}
-                    className={`group px-3 py-2 rounded flex items-center justify-between hover:bg-gray-100 ${
-                      activeFile?.id === file.id ? 'bg-gray-100' : ''
-                    }`}
-                  >
-                    <button
-                      onClick={() => openFile(file)}
-                      className="flex items-center gap-2 flex-1 text-left"
-                    >
-                      <FileCode className="w-4 h-4 flex-shrink-0" />
-                      <span className="truncate text-sm">{file.filename}</span>
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Modules Section */}
-          <div className="flex-1 overflow-hidden">
-            <ModulesSection projectId={projectId} />
+              ))
+            )}
           </div>
         </div>
 
-          
         {/* Editor */}
         <div className="flex-1 flex flex-col bg-white">
           {activeFile ? (
@@ -208,6 +233,7 @@ export default function DesignPage() {
                   theme="vs-dark"
                   value={editorContent}
                   onChange={(value) => setEditorContent(value || '')}
+                  onMount={handleEditorMount}
                   options={{
                     minimap: { enabled: false },
                     fontSize: 14,
@@ -234,13 +260,37 @@ export default function DesignPage() {
             </div>
           )}
         </div>
-          {/* New file modal */}
+      </div>
+
+      {/* Modules Section - Horizontal at bottom */}
+      <div className="border-t border-gray-200 bg-white">
+        <button
+          onClick={() => setShowModules(!showModules)}
+          className="w-full px-4 py-2 flex items-center justify-between bg-gray-50 hover:bg-gray-100 text-sm font-medium"
+        >
+          <span>Design Modules</span>
+          {showModules ? (
+            <ChevronDown className="w-4 h-4" />
+          ) : (
+            <ChevronUp className="w-4 h-4" />
+          )}
+        </button>
+        {showModules && (
+          <div className="h-80 overflow-hidden">
+            <ModulesSection
+              projectId={projectId}
+              onModuleClick={handleModuleClick}
+              horizontal={true}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* New file modal */}
       {showNewFileModal && (
         <NewFileModal onClose={() => setShowNewFileModal(false)} onCreate={createFile} />
       )}
-      </div>
-
-    
+    </div>
   );
 }
 
