@@ -174,3 +174,45 @@ async def get_optional_user(
         return user
     except Exception:
         return None
+
+
+async def get_current_user_ws(token: str, db: Session) -> User:
+    """
+    Get current user from WebSocket token (query parameter)
+
+    Args:
+        token: JWT token string from query parameter
+        db: Database session
+
+    Returns:
+        Current user object
+
+    Raises:
+        HTTPException: If token is invalid or user not found
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+    )
+
+    payload = decode_access_token(token)
+
+    if payload is None:
+        raise credentials_exception
+
+    user_id: str = payload.get("sub")
+    if user_id is None:
+        raise credentials_exception
+
+    user = db.query(User).filter(User.id == int(user_id)).first()
+
+    if user is None:
+        raise credentials_exception
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user"
+        )
+
+    return user

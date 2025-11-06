@@ -12,6 +12,7 @@ from app.db.session import SessionLocal
 from app.models.job import Job, JobStatus
 from app.core.config import settings
 from app.services.storage import storage_service
+from app.workers.publisher import publisher
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +196,7 @@ def run_simulation(self, job_id: int):
 
 def update_build_progress(db, job, step_name, progress_percent=None, completed_steps=None):
     """
-    Update job progress in database
+    Update job progress in database and publish to WebSocket
 
     Args:
         db: Database session
@@ -219,16 +220,27 @@ def update_build_progress(db, job, step_name, progress_percent=None, completed_s
 
     job.progress_data = progress_data
     db.commit()
+
+    # Publish progress update to WebSocket
+    publisher.publish_progress(
+        job.id,
+        progress_percent or 0,
+        step_name,
+        completed_steps or []
+    )
     logger.info(f"Job {job.id}: {step_name} ({progress_percent}%)")
 
 
 def append_job_logs(db, job, new_logs):
-    """Append logs to job and commit"""
+    """Append logs to job and commit, then publish to WebSocket"""
     if job.logs:
         job.logs += new_logs
     else:
         job.logs = new_logs
     db.commit()
+
+    # Publish log update to WebSocket
+    publisher.publish_log(job.id, new_logs)
 
 
 # LibreLane build flow steps
