@@ -4,11 +4,12 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { buildsAPI, modulesAPI } from '@/lib/api';
-import { Play, CheckCircle, XCircle, Clock, Loader } from 'lucide-react';
+import { Play, CheckCircle, XCircle, Clock, Loader, Wifi, WifiOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useToolbar } from '../layout';
 import BuildProgress from '@/components/BuildProgress';
 import LogViewer from '@/components/LogViewer';
+import { useJobWebSocket } from '@/hooks/useJobWebSocket';
 
 interface LibreLaneFlowConfig {
   design_name: string;
@@ -69,7 +70,6 @@ export default function BuildPage() {
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadBuildConfig = async () => {
     try {
@@ -117,28 +117,60 @@ export default function BuildPage() {
     loadBuildStatus();
   }, [projectId]);
 
-  // Poll for build status updates when build is running
-  useEffect(() => {
-    if (buildStatus && buildStatus.status === 'running') {
-      // Poll every 2 seconds during active build
-      pollingIntervalRef.current = setInterval(() => {
-        loadBuildStatus();
-      }, 2000);
-    } else {
-      // Clear polling when build is not running
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    }
+  // WebSocket connection for real-time build updates
+  const { isConnected, connectionError } = useJobWebSocket({
+    jobId: buildStatus?.job_id,
+    enabled: !!buildStatus && buildStatus.status === 'running',
 
-    // Cleanup on unmount
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
+    onStatusChange: (status) => {
+      setBuildStatus((prev) => prev ? { ...prev, status } : null);
+    },
+
+    onProgressUpdate: (progress, step, completedSteps) => {
+      setBuildStatus((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          current_step: step,
+          progress_data: {
+            current_step: step,
+            progress_percent: progress,
+            completed_steps: completedSteps,
+            steps_info: prev.progress_data?.steps_info || []
+          }
+        };
+      });
+    },
+
+    onLogUpdate: (logLine) => {
+      setBuildStatus((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          logs: (prev.logs || '') + logLine
+        };
+      });
+    },
+
+    onStepChange: (stepName, stepLabel) => {
+      console.log(`Build step: ${stepLabel}`);
+    },
+
+    onComplete: (status, message) => {
+      setBuildStatus((prev) => prev ? { ...prev, status } : null);
+      if (status === 'completed') {
+        toast.success('Build completed successfully!');
+      } else if (status === 'failed') {
+        toast.error('Build failed');
       }
-    };
-  }, [buildStatus?.status]);
+      // Reload full status to get final results
+      loadBuildStatus();
+    },
+
+    onError: (errorMessage) => {
+      toast.error(errorMessage);
+    }
+  });
 
   const startBuild = useCallback(async () => {
     if (!config) return;
@@ -440,6 +472,32 @@ export default function BuildPage() {
           <div className="space-y-6">
             {buildStatus ? (
               <>
+                {/* WebSocket Connection Status */}
+                {buildStatus.status === 'running' && (
+                  <div className={`flex items-center gap-2 px-4 py-2 text-sm ${
+                    isConnected
+                      ? 'bg-green-50 text-green-700 border border-green-200'
+                      : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                  }`}>
+                    {isConnected ? (
+                      <>
+                        <Wifi className="w-4 h-4" />
+                        <span>Live updates connected</span>
+                      </>
+                    ) : connectionError ? (
+                      <>
+                        <WifiOff className="w-4 h-4" />
+                        <span>Reconnecting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" />
+                        <span>Connecting to live updates...</span>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {/* Build Progress Component */}
                 <BuildProgress
                   status={buildStatus.status}
