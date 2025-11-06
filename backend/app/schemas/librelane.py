@@ -9,12 +9,7 @@ from enum import Enum
 class PDKType(str, Enum):
     """Supported PDK (Process Design Kit) types"""
     SKY130 = "sky130A"
-    SKY130_HD = "sky130_fd_sc_hd"
-    SKY130_HS = "sky130_fd_sc_hs"
-    SKY130_MS = "sky130_fd_sc_ms"
-    SKY130_LS = "sky130_fd_sc_ls"
-    SKY130_HVL = "sky130_fd_sc_hvl"
-    GF180MCU = "gf180mcuC"
+    GF180MCU = "gf180mcuD"
 
 
 class FlowType(str, Enum):
@@ -50,7 +45,7 @@ class LibreLaneFlowConfig(BaseModel):
     verilog_files: List[str] = Field(default=[], description="List of Verilog source files (auto-detected if empty)")
 
     # PDK Configuration
-    pdk: PDKType = Field(default=PDKType.SKY130_HD, description="Process Design Kit")
+    pdk: PDKType = Field(default=PDKType.SKY130, description="Process Design Kit")
     std_cell_library: Optional[str] = Field(None, description="Standard cell library (auto-selected from PDK if not specified)")
 
     # Flow selection
@@ -146,22 +141,13 @@ LIBRELANE_PRESETS = {
         name="Minimal Flow",
         description="Fast flow for quick iterations and testing",
         config=LibreLaneFlowConfig(
-            design_name="example",
-            verilog_files=["design.v"],
-            pdk=PDKType.SKY130_HD,
-            clock_period="20",
-            pl_target_density="0.3",
-            run_drc=False,
-            run_lvs=False,
+            clock_period="20"
         )
     ),
     "balanced": LibreLaneFlowPreset(
         name="Balanced Flow",
         description="Balanced between speed and quality",
         config=LibreLaneFlowConfig(
-            design_name="example",
-            verilog_files=["design.v"],
-            pdk=PDKType.SKY130_HD,
             clock_period="10",
             pl_target_density="0.5",
             fp_core_util=50,
@@ -173,9 +159,6 @@ LIBRELANE_PRESETS = {
         name="High Quality Flow",
         description="Maximum quality for tape-out ready designs",
         config=LibreLaneFlowConfig(
-            design_name="example",
-            verilog_files=["design.v"],
-            pdk=PDKType.SKY130_HD,
             clock_period="5",
             pl_target_density="0.7",
             fp_core_util=70,

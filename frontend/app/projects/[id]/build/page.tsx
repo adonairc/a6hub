@@ -51,11 +51,9 @@ interface BuildStatus {
 }
 
 const PDK_OPTIONS = [
-  { value: 'sky130_fd_sc_hd', label: 'Sky130 HD - High Density' },
-  { value: 'sky130_fd_sc_hs', label: 'Sky130 HS - High Speed' },
-  { value: 'sky130_fd_sc_ms', label: 'Sky130 MS - Medium Speed' },
-  { value: 'sky130_fd_sc_ls', label: 'Sky130 LS - Low Speed' },
-  { value: 'gf180mcuC', label: 'GF180MCU' },
+
+  { value: 'sky130A', label: 'Sky130A' },
+  { value: 'gf180mcuD', label: 'GF180MCU' },
 ];
 
 
@@ -67,7 +65,7 @@ export default function BuildPage() {
   const [config, setConfig] = useState<LibreLaneFlowConfig | null>(null);
   const [presets, setPresets] = useState<Record<string, BuildPreset>>({});
   const [buildStatus, setBuildStatus] = useState<BuildStatus | null>(null);
-  const [modules, setModules] = useState(null)
+  const [modules, setModules] = useState([])
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
@@ -108,7 +106,7 @@ export default function BuildPage() {
       const response = await modulesAPI.listModules(projectId);
       setModules(response.data);
     } catch (error) {
-      setModules(null)
+      setModules([])
     }
   }
 
@@ -149,6 +147,7 @@ export default function BuildPage() {
     try {
       await buildsAPI.startBuild(projectId, { config });
       toast.success('Build started! Check the status below.');
+      console.log("config = ",config)
       await loadBuildStatus();
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to start build');

@@ -328,7 +328,7 @@ def run_build(self, job_id: int):
 
         # Extract LibreLane configuration
         design_name = config.get("design_name", project.name)
-        pdk = config.get("pdk", "sky130_fd_sc_hd")
+        pdk = config.get("pdk", "sky130A")
         # Use 'or []' to handle None values (when explicitly set to null in config)
         verilog_files = config.get("verilog_files") or []
         use_docker = config.get("use_docker", False)  # Default to Python LibreLane
@@ -397,26 +397,26 @@ def run_build(self, job_id: int):
             "DESIGN_NAME": design_name,
             "VERILOG_FILES": [f"dir::design/{vf}" for vf in verilog_files],
             "CLOCK_PERIOD": config.get("clock_period", "10"),
-            "CLOCK_PORT": config.get("clock_port", "clk"),
+            # "CLOCK_PORT": config.get("clock_port", "clk"),
             "PDK": pdk,
-            "STD_CELL_LIBRARY": config.get("std_cell_library", pdk),
-            "FP_CORE_UTIL": config.get("fp_core_util", 50),
-            "FP_ASPECT_RATIO": config.get("fp_aspect_ratio", 1.0),
-            "PL_TARGET_DENSITY": float(config.get("pl_target_density", "0.5")),
-            "PL_RANDOM_SEED": config.get("pl_random_seed", 42),
-            "SYNTH_STRATEGY": config.get("synth_strategy", "AREA 0"),
-            "SYNTH_MAX_FANOUT": config.get("synth_max_fanout", 10),
-            "GRT_REPAIR_ANTENNAS": config.get("grt_repair_antennas", True),
-            "DRT_OPT_ITERS": config.get("drt_opt_iters", 64),
-            "RUN_DRC": config.get("run_drc", True),
-            "RUN_LVS": config.get("run_lvs", True),
+            # "STD_CELL_LIBRARY": config.get("std_cell_library", pdk),
+            # "FP_CORE_UTIL": config.get("fp_core_util", 50),
+            # "FP_ASPECT_RATIO": config.get("fp_aspect_ratio", 1.0),
+            # "PL_TARGET_DENSITY": float(config.get("pl_target_density", "0.5")),
+            # "PL_RANDOM_SEED": config.get("pl_random_seed", 42),
+            # "SYNTH_STRATEGY": config.get("synth_strategy", "AREA 0"),
+            # "SYNTH_MAX_FANOUT": config.get("synth_max_fanout", 10),
+            # "GRT_REPAIR_ANTENNAS": config.get("grt_repair_antennas", True),
+            # "DRT_OPT_ITERS": config.get("drt_opt_iters", 64),
+            # "RUN_DRC": config.get("run_drc", True),
+            # "RUN_LVS": config.get("run_lvs", True),
         }
 
         # Add optional configurations
-        if "die_area" in config:
-            librelane_config["DIE_AREA"] = config["die_area"]
-        if "core_area" in config:
-            librelane_config["CORE_AREA"] = config["core_area"]
+        # if "die_area" in config:
+        #     librelane_config["DIE_AREA"] = config["die_area"]
+        # if "core_area" in config:
+        #     librelane_config["CORE_AREA"] = config["core_area"]
 
         # Add extra args if provided
         if "extra_args" in config and config["extra_args"]:
