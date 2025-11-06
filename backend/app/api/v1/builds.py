@@ -140,6 +140,10 @@ async def get_build_config(
             detail="Access denied"
         )
 
+    # Auto-detect all Verilog/SystemVerilog files from current project
+    verilog_extensions = ('.v', '.sv', '.vh')
+    verilog_files = [f.filepath for f in project.files if f.filepath.endswith(verilog_extensions)]
+
     # Get most recent build job
     last_build = (
         db.query(Job)
@@ -149,17 +153,16 @@ async def get_build_config(
     )
 
     if last_build and last_build.config:
-        # Return last used configuration
-        return LibreLaneFlowConfig(**last_build.config)
+        # Return last used configuration, but update verilog_files with current project files
+        config = LibreLaneFlowConfig(**last_build.config)
+        config.verilog_files = verilog_files  # Always use current project files
+        config.design_name = project.name  # Also update design name to match project
+        return config
     else:
         # Return default configuration with project-specific values
-        # Auto-detect all Verilog/SystemVerilog files
-        verilog_extensions = ('.v', '.sv', '.vh')
-        verilog_files = [f.filepath for f in project.files if f.filepath.endswith(verilog_extensions)]
-
         return LibreLaneFlowConfig(
             design_name=project.name,
-            verilog_files=verilog_files,  # Empty list will trigger auto-detection in worker
+            verilog_files=verilog_files,
         )
 
 
