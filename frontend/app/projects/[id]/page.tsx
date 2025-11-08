@@ -261,8 +261,21 @@ export default function DesignPage() {
               ))
             )}
           </div>
+        
+        
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="font-semibold">Macros</h3>
+            <button
+              onClick={() => setShowNewFileModal(true)}
+              className="p-1 hover:bg-gray-100 rounded"
+              title="New file"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
+          
         {/* Editor */}
         <div className="flex-1 flex flex-col bg-white">
           {activeFile ? (

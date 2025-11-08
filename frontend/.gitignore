@@ -3,6 +3,11 @@
 /.pnp
 .pnp.js
 
+# Pycache
+__pycache__/
+*.py[cod]
+
+
 # Testing
 /coverage
 *.pyc
