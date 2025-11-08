@@ -102,8 +102,8 @@ class LibreLaneFlowConfig(BaseModel):
     generate_final_summary: bool = Field(default=True, description="Generate final summary report")
 
     # Docker options
-    use_docker: bool = Field(default=True, description="Run LibreLane in Docker container")
-    docker_image: str = Field(default="ghcr.io/librelane/librelane:latest", description="Docker image to use")
+    use_docker: bool = Field(default=False, description="Run LibreLane in Docker container (default: False, uses installed package)")
+    docker_image: str = Field(default="ghcr.io/adonairc/librelane:latest", description="Docker image to use (from adonairc/librelane repository)")
 
     # Advanced options
     extra_args: Optional[Dict[str, Any]] = Field(None, description="Additional LibreLane arguments")

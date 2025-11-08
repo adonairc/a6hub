@@ -404,8 +404,8 @@ def run_build(self, job_id: int):
                 raise Exception(f"LibreLane failed with exit code {process.returncode}")
 
         else:
-            # Run LibreLane locally (requires LibreLane installation)
-            logs.append("Running LibreLane locally\n\n")
+            # Run LibreLane locally using installed package from adonairc/librelane
+            logs.append("Running LibreLane locally (from adonairc/librelane)\n\n")
 
             cmd = [
                 "python3", "-m", "librelane",
@@ -415,23 +415,32 @@ def run_build(self, job_id: int):
 
             logs.append(f"Command: {' '.join(cmd)}\n\n")
 
-            result = subprocess.run(
+            # Execute LibreLane flow with real-time output
+            process = subprocess.Popen(
                 cmd,
                 cwd=work_dir,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                timeout=settings.WORKER_TIMEOUT
+                bufsize=1
             )
 
             logs.append("=== LibreLane Output ===\n")
-            logs.append(result.stdout)
 
-            if result.stderr:
-                logs.append("\n=== Warnings/Errors ===\n")
-                logs.append(result.stderr)
+            # Stream output in real-time
+            for line in process.stdout:
+                logs.append(line)
+                # Publish each line of output
+                publish_build_progress(
+                    job_id,
+                    "log",
+                    message=line.rstrip()
+                )
 
-            if result.returncode != 0:
-                raise Exception(f"LibreLane failed with exit code {result.returncode}")
+            process.wait(timeout=settings.WORKER_TIMEOUT)
+
+            if process.returncode != 0:
+                raise Exception(f"LibreLane failed with exit code {process.returncode}")
 
         # Check for output artifacts
         logs.append("\n\n=== Build Complete ===\n")

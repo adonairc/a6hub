@@ -155,6 +155,63 @@ alembic upgrade head
 alembic downgrade -1
 ```
 
+### LibreLane Worker Setup
+
+The a6hub backend uses LibreLane from the [adonairc/librelane](https://github.com/adonairc/librelane) repository for ASIC design flows.
+
+#### Installation
+
+LibreLane is automatically installed from the GitHub repository when you install the backend dependencies:
+
+```bash
+# LibreLane is included in requirements.txt
+pip install -r requirements.txt
+```
+
+This installs LibreLane directly from: `git+https://github.com/adonairc/librelane.git@main`
+
+#### PDK Setup
+
+LibreLane requires Process Design Kits (PDKs) to be installed. Configure the PDK root path in your environment:
+
+```bash
+# In .env file
+PDK_ROOT=/path/to/pdk  # e.g., /opt/pdk or $HOME/.ciel
+```
+
+For open-source PDKs like SkyWater SKY130:
+
+```bash
+# Install using Volare (LibreLane's PDK manager)
+pip install volare
+volare enable --pdk sky130 sky130A
+```
+
+#### Running Builds
+
+By default, builds run using the **locally installed LibreLane package** (not Docker). This provides:
+- Faster execution (no Docker overhead)
+- Better integration with the WebSocket progress streaming
+- Direct access to the adonairc/librelane improvements
+
+To use Docker mode instead, set `use_docker: true` in the build configuration.
+
+#### Docker Mode (Optional)
+
+If you prefer to run LibreLane in Docker:
+
+```bash
+# Build the Docker image from adonairc/librelane
+git clone https://github.com/adonairc/librelane.git
+cd librelane
+docker build -t ghcr.io/adonairc/librelane:latest .
+
+# Or pull if available
+docker pull ghcr.io/adonairc/librelane:latest
+```
+
+Then configure builds with `use_docker: true` and `docker_image: "ghcr.io/adonairc/librelane:latest"`.
+
 ## API Endpoints
 
 ### Authentication

@@ -24,6 +24,9 @@ flower==2.0.1  # Celery monitoring dashboard
 websockets==12.0
 redis[hiredis]==5.0.1
 
+# LibreLane - ASIC design flow (from adonairc repository)
+librelane @ git+https://github.com/adonairc/librelane.git@main
+
 # Storage
 minio==7.2.0
 
