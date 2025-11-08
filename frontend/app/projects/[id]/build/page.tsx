@@ -1,11 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { buildsAPI } from '@/lib/api';
-import { Play, CheckCircle, XCircle, Clock, Loader } from 'lucide-react';
+import { buildsAPI, modulesAPI } from '@/lib/api';
+import { Play, CheckCircle, XCircle, Clock, Loader, Wifi, WifiOff } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useToolbar } from '../layout';
+import BuildProgress from '@/components/BuildProgress';
+import LogViewer from '@/components/LogViewer';
+import { useJobWebSocket } from '@/hooks/useJobWebSocket';
 
 interface LibreLaneFlowConfig {
   design_name: string;
@@ -33,34 +37,39 @@ interface BuildPreset {
 interface BuildStatus {
   job_id: number;
   status: string;
-  current_step?: string;
+  current_step?: string | null;
+  progress_data?: {
+    current_step: string;
+    progress_percent?: number;
+    completed_steps?: string[];
+    steps_info?: Array<{
+      name: string;
+      label: string;
+      description: string;
+    }>;
+  } | null;
   logs?: string;
 }
 
 const PDK_OPTIONS = [
-  { value: 'sky130_fd_sc_hd', label: 'Sky130 HD - High Density' },
-  { value: 'sky130_fd_sc_hs', label: 'Sky130 HS - High Speed' },
-  { value: 'sky130_fd_sc_ms', label: 'Sky130 MS - Medium Speed' },
-  { value: 'sky130_fd_sc_ls', label: 'Sky130 LS - Low Speed' },
-  { value: 'gf180mcuC', label: 'GF180MCU' },
+
+  { value: 'sky130A', label: 'Sky130A' },
+  { value: 'gf180mcuD', label: 'GF180MCU' },
 ];
+
 
 export default function BuildPage() {
   const params = useParams();
   const projectId = parseInt(params.id as string);
+  const { setToolbarActions } = useToolbar();
 
   const [config, setConfig] = useState<LibreLaneFlowConfig | null>(null);
   const [presets, setPresets] = useState<Record<string, BuildPreset>>({});
   const [buildStatus, setBuildStatus] = useState<BuildStatus | null>(null);
+  const [modules, setModules] = useState([])
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
-
-  useEffect(() => {
-    loadBuildConfig();
-    loadPresets();
-    loadBuildStatus();
-  }, [projectId]);
 
   const loadBuildConfig = async () => {
     try {
@@ -92,6 +101,93 @@ export default function BuildPage() {
     }
   };
 
+  const loadModules = async () => {
+    try {
+      const response = await modulesAPI.listModules(projectId);
+      setModules(response.data);
+    } catch (error) {
+      setModules([])
+    }
+  }
+
+  useEffect(() => {
+    loadBuildConfig();
+    loadModules();
+    loadPresets();
+    loadBuildStatus();
+  }, [projectId]);
+
+  // WebSocket connection for real-time build updates
+  const { isConnected, connectionError } = useJobWebSocket({
+    jobId: buildStatus?.job_id,
+    enabled: !!buildStatus && buildStatus.status === 'running',
+
+    onStatusChange: (status) => {
+      setBuildStatus((prev) => prev ? { ...prev, status } : null);
+    },
+
+    onProgressUpdate: (progress, step, completedSteps) => {
+      setBuildStatus((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          current_step: step,
+          progress_data: {
+            current_step: step,
+            progress_percent: progress,
+            completed_steps: completedSteps,
+            steps_info: prev.progress_data?.steps_info || []
+          }
+        };
+      });
+    },
+
+    onLogUpdate: (logLine) => {
+      setBuildStatus((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          logs: (prev.logs || '') + logLine
+        };
+      });
+    },
+
+    onStepChange: (stepName, stepLabel) => {
+      console.log(`Build step: ${stepLabel}`);
+    },
+
+    onComplete: (status, message) => {
+      setBuildStatus((prev) => prev ? { ...prev, status } : null);
+      if (status === 'completed') {
+        toast.success('Build completed successfully!');
+      } else if (status === 'failed') {
+        toast.error('Build failed');
+      }
+      // Reload full status to get final results
+      loadBuildStatus();
+    },
+
+    onError: (errorMessage) => {
+      toast.error(errorMessage);
+    }
+  });
+
+  const startBuild = useCallback(async () => {
+    if (!config) return;
+
+    setBuilding(true);
+    try {
+      await buildsAPI.startBuild(projectId, { config });
+      toast.success('Build started! Check the status below.');
+      console.log("config = ",config)
+      await loadBuildStatus();
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to start build');
+    } finally {
+      setBuilding(false);
+    }
+  }, [config, projectId]);
+
   const applyPreset = (presetKey: string) => {
     const preset = presets[presetKey];
     if (preset && config) {
@@ -100,20 +196,28 @@ export default function BuildPage() {
     }
   };
 
-  const startBuild = async () => {
-    if (!config) return;
-
-    setBuilding(true);
-    try {
-      await buildsAPI.startBuild(projectId, { config });
-      toast.success('Build started! Check the status below.');
-      await loadBuildStatus();
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to start build');
-    } finally {
-      setBuilding(false);
-    }
-  };
+  // Set toolbar actions
+  useEffect(() => {
+    setToolbarActions(
+      <button
+        onClick={startBuild}
+        disabled={building || !config}
+        className="btn-primary flex items-center gap-2"
+      >
+        {building ? (
+          <>
+            <Loader className="w-4 h-4 animate-spin" />
+            Starting Build...
+          </>
+        ) : (
+          <>
+            <Play className="w-4 h-4" />
+            Start Build
+          </>
+        )}
+      </button>
+    );
+  }, [startBuild, building, config, setToolbarActions]);
 
   const updateConfig = (updates: Partial<LibreLaneFlowConfig>) => {
     if (config) {
@@ -135,30 +239,6 @@ export default function BuildPage() {
 
   return (
     <div className="h-full bg-gray-50 overflow-auto">
-      {/* Toolbar */}
-      <div className="border-b border-gray-200 bg-white px-6 py-3 sticky top-0 z-10">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">ASIC Build Configuration</h2>
-          <button
-            onClick={startBuild}
-            disabled={building}
-            className="btn-primary flex items-center gap-2"
-          >
-            {building ? (
-              <>
-                <Loader className="w-4 h-4 animate-spin" />
-                Starting Build...
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                Start Build
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main configuration panel */}
@@ -210,15 +290,26 @@ export default function BuildPage() {
               <div className="p-6">
                 {activeTab === 'basic' ? (
                   <div className="space-y-4">
-                    {/* Design name */}
+                    {/* Top Module */}
                     <div>
-                      <label className="block text-sm font-medium mb-2">Design Name</label>
-                      <input
+                      <label className="block text-sm font-medium mb-2">Top Module</label>
+                      {/* <input
                         type="text"
                         className="input"
                         value={config.design_name}
                         onChange={(e) => updateConfig({ design_name: e.target.value })}
-                      />
+                      /> */}
+                      <select
+                        className="input"
+                        value={config.design_name}
+                        onChange={(e) => updateConfig({ design_name: e.target.value })}
+                      >
+                        (modules && {modules.map((module) => (
+                          <option key={module.name} value={module.name}>
+                            {module.name}
+                          </option>
+                        ))})
+                      </select>
                     </div>
 
                     {/* PDK Selection */}
@@ -377,34 +468,61 @@ export default function BuildPage() {
             </div>
           </div>
 
-          {/* Sidebar - Build status */}
+          {/* Sidebar - Build Progress */}
           <div className="space-y-6">
-            {/* Current status */}
-            {buildStatus && (
-              <div className="bg-white border border-gray-200 p-6">
-                <h2 className="text-lg font-semibold mb-4">Latest Build Status</h2>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Status</span>
-                    <StatusBadge status={buildStatus.status} />
+            {buildStatus ? (
+              <>
+                {/* WebSocket Connection Status */}
+                {buildStatus.status === 'running' && (
+                  <div className={`flex items-center gap-2 px-4 py-2 text-sm ${
+                    isConnected
+                      ? 'bg-green-50 text-green-700 border border-green-200'
+                      : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                  }`}>
+                    {isConnected ? (
+                      <>
+                        <Wifi className="w-4 h-4" />
+                        <span>Live updates connected</span>
+                      </>
+                    ) : connectionError ? (
+                      <>
+                        <WifiOff className="w-4 h-4" />
+                        <span>Reconnecting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" />
+                        <span>Connecting to live updates...</span>
+                      </>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between">
+                )}
+
+                {/* Build Progress Component */}
+                <BuildProgress
+                  status={buildStatus.status}
+                  currentStep={buildStatus.current_step}
+                  progressData={buildStatus.progress_data}
+                />
+
+                {/* Job Info Card */}
+                <div className="bg-white border border-gray-200 p-4">
+                  <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-600">Job ID</span>
                     <span className="text-sm font-mono">#{buildStatus.job_id}</span>
                   </div>
-                  {buildStatus.current_step && (
-                    <div className="mt-4 p-3 bg-gray-50 border border-gray-200">
-                      <div className="text-xs text-gray-600 mb-1">Current Step</div>
-                      <div className="text-sm font-medium">{buildStatus.current_step}</div>
-                    </div>
-                  )}
                   <Link
                     href={`/projects/${projectId}/jobs/${buildStatus.job_id}`}
-                    className="btn-secondary w-full text-center mt-4"
+                    className="mt-4 btn-secondary w-full text-center text-sm"
                   >
                     View Job Details
                   </Link>
                 </div>
+              </>
+            ) : (
+              <div className="bg-white border border-gray-200 p-6 text-center text-gray-500">
+                <p className="mb-2">No build yet</p>
+                <p className="text-sm">Click &quot;Start Build&quot; to begin</p>
               </div>
             )}
 
@@ -424,6 +542,18 @@ export default function BuildPage() {
             </div>
           </div>
         </div>
+
+        {/* Logs Viewer - Full width section */}
+        {buildStatus && buildStatus.logs && (
+          <div className="mt-6">
+            <LogViewer
+              logs={buildStatus.logs}
+              title={`Build Logs - Job #${buildStatus.job_id}`}
+              autoScroll={buildStatus.status === 'running'}
+              maxHeight="600px"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

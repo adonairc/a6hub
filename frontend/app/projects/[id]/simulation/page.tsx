@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { jobsAPI, filesAPI } from '@/lib/api';
 import { Play, CheckCircle, XCircle, Clock, Loader, FileText, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useToolbar } from '../layout';
 
 interface Job {
   id: number;
@@ -24,6 +25,7 @@ interface SimulationConfig {
 export default function SimulationPage() {
   const params = useParams();
   const projectId = parseInt(params.id as string);
+  const { setToolbarActions } = useToolbar();
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [files, setFiles] = useState<any[]>([]);
@@ -43,6 +45,29 @@ export default function SimulationPage() {
     loadJobs();
     loadFiles();
   }, [projectId]);
+
+  // Set toolbar actions
+  useEffect(() => {
+    setToolbarActions(
+      <button
+        onClick={runSimulation}
+        disabled={running}
+        className="btn-primary flex items-center gap-2"
+      >
+        {running ? (
+          <>
+            <Loader className="w-4 h-4 animate-spin" />
+            Starting...
+          </>
+        ) : (
+          <>
+            <Play className="w-4 h-4" />
+            Run Simulation
+          </>
+        )}
+      </button>
+    );
+  }, [running]);
 
   const loadJobs = async () => {
     try {
@@ -102,30 +127,6 @@ export default function SimulationPage() {
 
   return (
     <div className="h-full bg-gray-50 overflow-auto">
-      {/* Toolbar */}
-      <div className="border-b border-gray-200 bg-white px-6 py-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Simulation</h2>
-          <button
-            onClick={runSimulation}
-            disabled={running}
-            className="btn-primary flex items-center gap-2"
-          >
-            {running ? (
-              <>
-                <Loader className="w-4 h-4 animate-spin" />
-                Starting...
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                Run Simulation
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Configuration */}

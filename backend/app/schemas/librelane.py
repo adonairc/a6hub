@@ -47,7 +47,7 @@ class LibreLaneFlowConfig(BaseModel):
 
     # Design basics
     design_name: str = Field(..., description="Top module name")
-    verilog_files: List[str] = Field(..., description="List of Verilog source files")
+    verilog_files: List[str] = Field(default=[], description="List of Verilog source files (auto-detected if empty)")
 
     # PDK Configuration
     pdk: PDKType = Field(default=PDKType.SKY130_HD, description="Process Design Kit")
@@ -101,9 +101,15 @@ class LibreLaneFlowConfig(BaseModel):
     # Output options
     generate_final_summary: bool = Field(default=True, description="Generate final summary report")
 
-    # Docker options
-    use_docker: bool = Field(default=True, description="Run LibreLane in Docker container")
-    docker_image: str = Field(default="ghcr.io/librelane/librelane:latest", description="Docker image to use")
+    # Execution options
+    use_docker: bool = Field(
+        default=False,
+        description="Run in Docker container (False = use local LibreLane Python installation, recommended)"
+    )
+    docker_image: str = Field(
+        default="efabless/openlane:latest",
+        description="Docker image to use if use_docker=True. Options: efabless/openlane:latest, ghcr.io/efabless/openlane2:2.3.1"
+    )
 
     # Advanced options
     extra_args: Optional[Dict[str, Any]] = Field(None, description="Additional LibreLane arguments")
@@ -123,6 +129,7 @@ class LibreLaneBuildStatus(BaseModel):
     status: str
     progress: Optional[str] = None
     current_step: Optional[str] = None
+    progress_data: Optional[Dict[str, Any]] = None
     logs: Optional[str] = None
 
 
@@ -140,7 +147,7 @@ LIBRELANE_PRESETS = {
         description="Fast flow for quick iterations and testing",
         config=LibreLaneFlowConfig(
             design_name="example",
-            verilog_files=["design.v"],
+            verilog_files=[],  # Auto-detect from project files
             pdk=PDKType.SKY130_HD,
             clock_period="20",
             pl_target_density="0.3",
@@ -153,7 +160,7 @@ LIBRELANE_PRESETS = {
         description="Balanced between speed and quality",
         config=LibreLaneFlowConfig(
             design_name="example",
-            verilog_files=["design.v"],
+            verilog_files=[],  # Auto-detect from project files
             pdk=PDKType.SKY130_HD,
             clock_period="10",
             pl_target_density="0.5",
@@ -167,7 +174,7 @@ LIBRELANE_PRESETS = {
         description="Maximum quality for tape-out ready designs",
         config=LibreLaneFlowConfig(
             design_name="example",
-            verilog_files=["design.v"],
+            verilog_files=[],  # Auto-detect from project files
             pdk=PDKType.SKY130_HD,
             clock_period="5",
             pl_target_density="0.7",

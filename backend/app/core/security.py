@@ -123,16 +123,96 @@ async def get_current_active_user(
 ) -> User:
     """
     Dependency to ensure user is active
-    
+
     Args:
         current_user: Current authenticated user
-    
+
     Returns:
         Active user object
-    
+
     Raises:
         HTTPException: If user is inactive
     """
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
+
+
+async def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """
+    Dependency to get current user if authenticated, None otherwise
+
+    Args:
+        credentials: Optional HTTP Bearer token credentials
+        db: Database session
+
+    Returns:
+        Current user object or None if not authenticated
+    """
+    if credentials is None:
+        return None
+
+    try:
+        token = credentials.credentials
+        payload = decode_access_token(token)
+
+        if payload is None:
+            return None
+
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            return None
+
+        user = db.query(User).filter(User.id == int(user_id)).first()
+
+        if user is None or not user.is_active:
+            return None
+
+        return user
+    except Exception:
+        return None
+
+
+async def get_current_user_ws(token: str, db: Session) -> User:
+    """
+    Get current user from WebSocket token (query parameter)
+
+    Args:
+        token: JWT token string from query parameter
+        db: Database session
+
+    Returns:
+        Current user object
+
+    Raises:
+        HTTPException: If token is invalid or user not found
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+    )
+
+    payload = decode_access_token(token)
+
+    if payload is None:
+        raise credentials_exception
+
+    user_id: str = payload.get("sub")
+    if user_id is None:
+        raise credentials_exception
+
+    user = db.query(User).filter(User.id == int(user_id)).first()
+
+    if user is None:
+        raise credentials_exception
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user"
+        )
+
+    return user

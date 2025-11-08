@@ -6,9 +6,11 @@ This document describes the LibreLane integration added to a6hub for orchestrati
 
 The LibreLane integration enables users to:
 - Configure ASIC build flows with a user-friendly interface
-- Run complete RTL-to-GDSII flows in Docker containers
+- Run complete RTL-to-GDSII flows using LibreLane Python library (or Docker as alternative)
 - Track build progress and view results
 - Use pre-configured flow presets for common scenarios
+
+**Note:** a6hub uses LibreLane as a Python library by default. See `backend/LIBRELANE_PYTHON_SETUP.md` for installation. Docker mode is available as a fallback.
 
 ## Architecture
 
@@ -46,11 +48,13 @@ Enhanced `run_build` task that:
 docker run --rm \
   -v /work:/work \
   -w /work \
-  ghcr.io/librelane/librelane:latest \
+  efabless/openlane:latest \
   --dockerized \
   --pdk-root=/root/.ciel \
   /work/config.json
 ```
+
+**Note:** The default Docker image is `efabless/openlane:latest` (OpenLane v1). For other options, see `backend/OPENLANE_DOCKER_SETUP.md`.
 
 #### 3. Build API Endpoints (`app/api/v1/builds.py`)
 
@@ -118,7 +122,7 @@ Updated project page tabs to include functional "Build" link that navigates to t
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `design_name` | string | (required) | Top module name |
-| `verilog_files` | list | (required) | List of Verilog source files |
+| `verilog_files` | list | [] | List of Verilog source files (auto-detected if empty) |
 | `pdk` | enum | sky130_fd_sc_hd | Process Design Kit |
 | `clock_period` | string | "10" | Clock period in nanoseconds |
 | `clock_port` | string | "clk" | Clock port name |
@@ -154,7 +158,7 @@ Updated project page tabs to include functional "Build" link that navigates to t
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `use_docker` | bool | true | Run in Docker container |
-| `docker_image` | string | ghcr.io/librelane/librelane:latest | Docker image to use |
+| `docker_image` | string | efabless/openlane:latest | Docker image to use (see OPENLANE_DOCKER_SETUP.md for alternatives) |
 
 ## Usage Example
 
@@ -229,11 +233,20 @@ LibreLane generates the following in `runs/RUN_<timestamp>/`:
 - **Netlists**: Post-synthesis/PnR netlists
 - **LEF/DEF**: Physical design data
 
+## File Auto-Detection
+
+When `verilog_files` is not specified or is empty, the system automatically detects all Verilog-related files in the project:
+- `.v` - Verilog files
+- `.sv` - SystemVerilog files
+- `.vh` - Verilog header files
+
+All detected files are included in the build by default, ensuring no source files are accidentally omitted.
+
 ## Error Handling
 
 The system handles:
 - **Timeout**: Builds exceeding `WORKER_TIMEOUT` (3600s default)
-- **Missing files**: Validates project has Verilog files
+- **Missing files**: Validates project has files and detects Verilog sources automatically
 - **Docker errors**: Captures stderr and exit codes
 - **Permission errors**: Checks project ownership
 

@@ -101,19 +101,20 @@ async def list_public_projects(
 ):
     """
     List all public projects
-    
+
     - Returns paginated list of public projects from all users
+    - Sorted by popularity (stars_count, then views_count)
     - No authentication required
     """
     projects = (
         db.query(Project)
         .filter(Project.visibility == ProjectVisibility.PUBLIC)
-        .order_by(Project.created_at.desc())
+        .order_by(Project.stars_count.desc(), Project.views_count.desc(), Project.created_at.desc())
         .offset(skip)
         .limit(limit)
         .all()
     )
-    
+
     return projects
 
 

@@ -27,11 +27,13 @@ class JobResponse(BaseModel):
     completed_at: Optional[datetime]
     error_message: Optional[str]
     artifacts_path: Optional[str]
+    current_step: Optional[str] = None
+    progress_data: Optional[Dict[str, Any]] = None
     project_id: int
     user_id: int
     created_at: datetime
     updated_at: Optional[datetime]
-    
+
     model_config = {"from_attributes": True}
 
 
@@ -63,3 +65,5 @@ class JobLogsResponse(BaseModel):
     job_id: int
     logs: str
     status: JobStatus
+    current_step: Optional[str] = None
+    progress_data: Optional[Dict[str, Any]] = None

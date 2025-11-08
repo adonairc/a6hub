@@ -9,6 +9,7 @@ import time
 import logging
 
 from app.api.v1.router import api_router
+from app.api.v1.websocket import router as websocket_router
 from app.core.config import settings
 from app.db.session import engine
 from app.db.base import Base
@@ -60,6 +61,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include API routes
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Include WebSocket routes
+app.include_router(websocket_router, prefix=f"{settings.API_V1_STR}/ws", tags=["websocket"])
 
 
 @app.on_event("startup")

@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { useRouter } from 'next/navigation';
 import { projectsAPI } from '@/lib/api';
-import { FolderOpen, Plus, Clock, Lock, Globe } from 'lucide-react';
+
+import { FolderOpen, Plus, Lock, Globe, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Project {
@@ -14,12 +16,17 @@ interface Project {
   description: string | null;
   visibility: string;
   created_at: string;
+  owner_id: number;
 }
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [publicProjects, setPublicProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'my' | 'public'>('my');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -27,8 +34,12 @@ export default function DashboardPage() {
 
   const loadProjects = async () => {
     try {
-      const response = await projectsAPI.list({ limit: 10 });
-      setProjects(response.data);
+      const [myProjectsRes, publicProjectsRes] = await Promise.all([
+        projectsAPI.list({ limit: 50 }),
+        projectsAPI.listPublic({ limit: 50 }),
+      ]);
+      setProjects(myProjectsRes.data);
+      setPublicProjects(publicProjectsRes.data);
     } catch (error) {
       toast.error('Failed to load projects');
     } finally {
@@ -36,75 +47,97 @@ export default function DashboardPage() {
     }
   };
 
+  const displayProjects = activeTab === 'my' ? projects : publicProjects;
+  const filteredProjects = displayProjects.filter((p) =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   return (
-    <div className="p-8">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">Welcome back, {user?.username}</h1>
-        <p className="text-gray-600">Manage your chip design projects</p>
+      <div className="border-b border-gray-200">
+        <div className="container mx-auto px-8 py-6">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.username}</h1>
+            <p className="text-gray-600">Manage your chip design projects</p>
+          </div>
+
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex gap-6">
+              <button
+                onClick={() => setActiveTab('my')}
+                className={`pb-3 px-1 font-medium transition-colors relative ${
+                  activeTab === 'my' ? 'text-black' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                My Projects ({projects.length})
+                {activeTab === 'my' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('public')}
+                className={`pb-3 px-1 font-medium transition-colors relative ${
+                  activeTab === 'public' ? 'text-black' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Public Projects ({publicProjects.length})
+                {activeTab === 'public' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
+                )}
+              </button>
+            </div>
+            {/* <Link href="/projects/new" className="btn-primary flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              New Project
+            </Link> */}
+          </div>
+        </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid md:grid-cols-3 gap-6 mb-12">
-        <Link
-          href="/projects/new"
-          className="card hover:border-black transition-colors cursor-pointer group"
-        >
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-12 h-12 bg-black text-white flex items-center justify-center group-hover:bg-gray-800 transition-colors">
-              <Plus className="w-6 h-6" />
-            </div>
-            <h3 className="text-xl font-semibold">New Project</h3>
+      {/* Content */}
+      <div className="container mx-auto px-8 py-8">
+        {/* Search */}
+        <div className="mb-8">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search projects..."
+              className="input pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-          <p className="text-gray-600">Start a new chip design project</p>
-        </Link>
+        </div>
 
-        <Link
-          href="/projects"
-          className="card hover:border-black transition-colors cursor-pointer group"
-        >
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-12 h-12 border border-black flex items-center justify-center group-hover:bg-black group-hover:text-white transition-colors">
-              <FolderOpen className="w-6 h-6" />
-            </div>
-            <h3 className="text-xl font-semibold">Browse Projects</h3>
-          </div>
-          <p className="text-gray-600">View all your projects</p>
-        </Link>
-
-        <Link
-          href="/projects?filter=public"
-          className="card hover:border-black transition-colors cursor-pointer group"
-        >
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-12 h-12 border border-black flex items-center justify-center group-hover:bg-black group-hover:text-white transition-colors">
-              <Globe className="w-6 h-6" />
-            </div>
-            <h3 className="text-xl font-semibold">Explore Public</h3>
-          </div>
-          <p className="text-gray-600">Discover community projects</p>
-        </Link>
-      </div>
-
-      {/* Recent Projects */}
-      <div>
-        <h2 className="text-2xl font-bold mb-6">Recent Projects</h2>
-        
+        {/* Projects Grid */}
         {loading ? (
           <div className="text-gray-500">Loading projects...</div>
-        ) : projects.length === 0 ? (
+        ) : filteredProjects.length === 0 ? (
           <div className="card text-center py-12">
             <FolderOpen className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-xl font-semibold mb-2">No projects yet</h3>
-            <p className="text-gray-600 mb-6">Create your first project to get started</p>
-            <Link href="/projects/new" className="btn-primary inline-flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Create Project
-            </Link>
+            <h3 className="text-xl font-semibold mb-2">
+              {searchQuery ? 'No projects found' : 'No projects yet'}
+            </h3>
+            <p className="text-gray-600 mb-6">
+              {searchQuery
+                ? 'Try adjusting your search'
+                : activeTab === 'my'
+                ? 'Create your first project to get started'
+                : 'No public projects available'}
+            </p>
+            {activeTab === 'my' && !searchQuery && (
+              <button onClick={() => setShowNewProjectModal(true)} className="btn-primary inline-flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Create Project
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
+            {filteredProjects.map((project) => (
               <Link
                 key={project.id}
                 href={`/projects/${project.id}`}
@@ -118,20 +151,20 @@ export default function DashboardPage() {
                     <Globe className="w-4 h-4 text-gray-400" />
                   )}
                 </div>
-                
+
                 {project.description && (
                   <p className="text-gray-600 mb-4 line-clamp-2">{project.description}</p>
                 )}
-                
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Clock className="w-4 h-4" />
-                  <span>{new Date(project.created_at).toLocaleDateString()}</span>
+
+                <div className="text-sm text-gray-500">
+                  {new Date(project.created_at).toLocaleDateString()}
                 </div>
               </Link>
             ))}
           </div>
         )}
       </div>
+     
     </div>
   );
 }

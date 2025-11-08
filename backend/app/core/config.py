@@ -38,6 +38,11 @@ class Settings(BaseSettings):
             f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
+
+    @property
+    def SQLALCHEMY_DATABASE_URI(self) -> str:
+        """Alias for DATABASE_URL for SQLAlchemy compatibility"""
+        return self.DATABASE_URL
     
     # Redis
     REDIS_HOST: str = "localhost"
@@ -64,8 +69,12 @@ class Settings(BaseSettings):
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
-    MINIO_BUCKET_NAME: str = "a6hub-artifacts"
+    MINIO_BUCKET_NAME: str = "a6hub-artifacts"  # For job artifacts
+    MINIO_FILES_BUCKET: str = "a6hub-files"  # For project files
     MINIO_SECURE: bool = False
+
+    # Yosys configuration for Verilog parsing
+    YOSYS_PATH: str = "/usr/bin/yosys"
     
     # Storage paths
     STORAGE_BASE_PATH: str = "/tmp/a6hub-storage"

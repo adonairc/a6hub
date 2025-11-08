@@ -72,18 +72,28 @@ export const projectsAPI = {
 export const filesAPI = {
   list: (projectId: number) =>
     api.get(`/api/v1/projects/${projectId}/files`),
-  
+
   get: (projectId: number, fileId: number) =>
     api.get(`/api/v1/projects/${projectId}/files/${fileId}`),
-  
+
   create: (projectId: number, data: { filename: string; filepath: string; content?: string; mime_type?: string }) =>
     api.post(`/api/v1/projects/${projectId}/files`, data),
-  
+
   update: (projectId: number, fileId: number, data: { content?: string; filename?: string }) =>
     api.put(`/api/v1/projects/${projectId}/files/${fileId}`, data),
-  
+
   delete: (projectId: number, fileId: number) =>
     api.delete(`/api/v1/projects/${projectId}/files/${fileId}`),
+
+  upload: (projectId: number, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/api/v1/projects/${projectId}/files/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };
 
 // Jobs API
@@ -123,4 +133,67 @@ export const buildsAPI = {
 
   getStatus: (projectId: number) =>
     api.get(`/api/v1/builds/${projectId}/build/status`),
+};
+
+// Modules API
+export const modulesAPI = {
+  // List modules in a project
+  listModules: (projectId: number, params?: { module_type?: string; search?: string }) =>
+    api.get(`/api/v1/projects/${projectId}/modules`, { params }),
+
+  // Get module details
+  getModule: (projectId: number, moduleId: number) =>
+    api.get(`/api/v1/projects/${projectId}/modules/${moduleId}`),
+
+  // Update module
+  updateModule: (projectId: number, moduleId: number, data: { name?: string; description?: string; module_metadata?: any }) =>
+    api.put(`/api/v1/projects/${projectId}/modules/${moduleId}`, data),
+
+  // Delete module
+  deleteModule: (projectId: number, moduleId: number) =>
+    api.delete(`/api/v1/projects/${projectId}/modules/${moduleId}`),
+
+  // Re-parse all files in project
+  reparseProject: (projectId: number) =>
+    api.post(`/api/v1/projects/${projectId}/modules/reparse`),
+
+  // Parse specific file
+  parseFile: (projectId: number, fileId: number) =>
+    api.post(`/api/v1/projects/${projectId}/files/${fileId}/parse`),
+};
+
+// Forum API
+export const forumAPI = {
+  // Categories
+  listCategories: () =>
+    api.get('/api/v1/forum/categories'),
+
+  // Topics
+  createTopic: (data: { title: string; category_id: number; content: string }) =>
+    api.post('/api/v1/forum/topics', data),
+
+  listTopics: (categoryId: number, params?: { skip?: number; limit?: number }) =>
+    api.get(`/api/v1/forum/categories/${categoryId}/topics`, { params }),
+
+  getTopic: (topicId: number) =>
+    api.get(`/api/v1/forum/topics/${topicId}`),
+
+  updateTopic: (topicId: number, data: { title?: string; is_pinned?: boolean; is_locked?: boolean }) =>
+    api.put(`/api/v1/forum/topics/${topicId}`, data),
+
+  deleteTopic: (topicId: number) =>
+    api.delete(`/api/v1/forum/topics/${topicId}`),
+
+  // Posts
+  listPosts: (topicId: number, params?: { skip?: number; limit?: number }) =>
+    api.get(`/api/v1/forum/topics/${topicId}/posts`, { params }),
+
+  createPost: (topicId: number, data: { content: string }) =>
+    api.post(`/api/v1/forum/topics/${topicId}/posts`, data),
+
+  updatePost: (postId: number, data: { content: string }) =>
+    api.put(`/api/v1/forum/posts/${postId}`, data),
+
+  deletePost: (postId: number) =>
+    api.delete(`/api/v1/forum/posts/${postId}`),
 };
