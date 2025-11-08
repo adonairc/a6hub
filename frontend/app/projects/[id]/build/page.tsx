@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { buildsAPI } from '@/lib/api';
-import { Play, CheckCircle, XCircle, Clock, Loader } from 'lucide-react';
+import { Play, CheckCircle, XCircle, Clock, Loader, Terminal } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useBuildWebSocket } from '@/hooks/useBuildWebSocket';
+import { BuildProgressMessage } from '@/lib/websocket';
 
 interface LibreLaneFlowConfig {
   design_name: string;
@@ -55,12 +57,69 @@ export default function BuildPage() {
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
+  const [buildLogs, setBuildLogs] = useState<string[]>([]);
+  const [currentStep, setCurrentStep] = useState<string>('');
+  const [showLogs, setShowLogs] = useState(false);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  // WebSocket connection for real-time updates
+  const { isConnected, lastMessage } = useBuildWebSocket({
+    jobId: buildStatus?.job_id || null,
+    enabled: buildStatus?.status === 'running',
+    onMessage: handleBuildMessage,
+  });
 
   useEffect(() => {
     loadBuildConfig();
     loadPresets();
     loadBuildStatus();
   }, [projectId]);
+
+  // Auto-scroll logs to bottom
+  useEffect(() => {
+    if (showLogs && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [buildLogs, showLogs]);
+
+  function handleBuildMessage(message: BuildProgressMessage) {
+    switch (message.type) {
+      case 'connected':
+        console.log('WebSocket connected');
+        break;
+
+      case 'status':
+        if (message.status) {
+          setBuildStatus((prev) => prev ? { ...prev, status: message.status! } : null);
+        }
+        if (message.step) {
+          setCurrentStep(message.step);
+        }
+        break;
+
+      case 'log':
+        if (message.message) {
+          setBuildLogs((prev) => [...prev, message.message!]);
+        }
+        break;
+
+      case 'complete':
+        setBuildStatus((prev) => prev ? { ...prev, status: 'completed' } : null);
+        setCurrentStep('Build completed');
+        toast.success('Build completed successfully!');
+        // Show logs panel
+        setShowLogs(true);
+        break;
+
+      case 'error':
+        setBuildStatus((prev) => prev ? { ...prev, status: 'failed' } : null);
+        setCurrentStep('Build failed');
+        toast.error(message.message || 'Build failed');
+        // Show logs panel
+        setShowLogs(true);
+        break;
+    }
+  }
 
   const loadBuildConfig = async () => {
     try {
@@ -104,9 +163,13 @@ export default function BuildPage() {
     if (!config) return;
 
     setBuilding(true);
+    setBuildLogs([]);
+    setCurrentStep('');
+    setShowLogs(true);
+
     try {
       await buildsAPI.startBuild(projectId, { config });
-      toast.success('Build started! Check the status below.');
+      toast.success('Build started! Watch the progress below.');
       await loadBuildStatus();
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to start build');
@@ -160,6 +223,44 @@ export default function BuildPage() {
       </div>
 
       <div className="max-w-7xl mx-auto p-6">
+        {/* Live Build Logs */}
+        {showLogs && buildStatus && (
+          <div className="mb-6 bg-gray-900 border border-gray-700 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
+              <div className="flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-green-400" />
+                <span className="text-sm font-medium text-gray-200">Build Logs - Job #{buildStatus.job_id}</span>
+                {isConnected && (
+                  <span className="flex items-center gap-1 text-xs text-green-400">
+                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                    Live
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setShowLogs(false)}
+                className="text-xs text-gray-400 hover:text-white"
+              >
+                Hide
+              </button>
+            </div>
+            <div className="h-96 overflow-y-auto p-4 font-mono text-xs text-gray-300">
+              {currentStep && (
+                <div className="text-blue-400 mb-2">→ {currentStep}</div>
+              )}
+              {buildLogs.map((log, index) => (
+                <div key={index} className="whitespace-pre-wrap">
+                  {log}
+                </div>
+              ))}
+              {buildLogs.length === 0 && (
+                <div className="text-gray-500">Waiting for build output...</div>
+              )}
+              <div ref={logsEndRef} />
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main configuration panel */}
           <div className="lg:col-span-2 space-y-6">
@@ -392,11 +493,28 @@ export default function BuildPage() {
                     <span className="text-sm text-gray-600">Job ID</span>
                     <span className="text-sm font-mono">#{buildStatus.job_id}</span>
                   </div>
-                  {buildStatus.current_step && (
-                    <div className="mt-4 p-3 bg-gray-50 border border-gray-200">
-                      <div className="text-xs text-gray-600 mb-1">Current Step</div>
-                      <div className="text-sm font-medium">{buildStatus.current_step}</div>
+                  {isConnected && buildStatus.status === 'running' && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Connection</span>
+                      <span className="flex items-center gap-1 text-xs text-green-600">
+                        <span className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
+                        Live
+                      </span>
                     </div>
+                  )}
+                  {currentStep && buildStatus.status === 'running' && (
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200">
+                      <div className="text-xs text-blue-600 mb-1">Current Step</div>
+                      <div className="text-sm font-medium text-blue-900">{currentStep}</div>
+                    </div>
+                  )}
+                  {!showLogs && buildLogs.length > 0 && (
+                    <button
+                      onClick={() => setShowLogs(true)}
+                      className="btn-secondary w-full text-center mt-4"
+                    >
+                      Show Build Logs
+                    </button>
                   )}
                   <Link
                     href={`/projects/${projectId}/jobs/${buildStatus.job_id}`}

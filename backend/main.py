@@ -12,6 +12,8 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.db.session import engine
 from app.db.base import Base
+from app.websocket.routes import router as websocket_router
+from app.websocket.manager import manager
 
 # Configure logging
 logging.basicConfig(
@@ -61,6 +63,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Include API routes
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+# Include WebSocket routes
+app.include_router(websocket_router)
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -69,12 +74,17 @@ async def startup_event():
     # Create database tables
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created/verified")
+    # Initialize WebSocket manager
+    await manager.initialize_redis()
+    logger.info("WebSocket manager initialized")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
     logger.info("Shutting down a6hub backend...")
+    await manager.close()
+    logger.info("WebSocket manager closed")
 
 
 @app.get("/")

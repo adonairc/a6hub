@@ -6,6 +6,8 @@ from datetime import datetime
 import subprocess
 import logging
 from pathlib import Path
+import json
+import redis
 
 from app.workers.celery_app import celery_app
 from app.db.session import SessionLocal
@@ -13,6 +15,36 @@ from app.models.job import Job, JobStatus
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Redis client for pub/sub
+redis_client = redis.Redis(
+    host=settings.REDIS_HOST,
+    port=settings.REDIS_PORT,
+    db=settings.REDIS_DB,
+    decode_responses=True
+)
+
+
+def publish_build_progress(job_id: int, message_type: str, **kwargs):
+    """
+    Publish build progress update to Redis pub/sub channel
+
+    Args:
+        job_id: Job ID
+        message_type: Type of message (status, progress, log, complete, error)
+        **kwargs: Additional data to include in the message
+    """
+    try:
+        message = {
+            "job_id": job_id,
+            "type": message_type,
+            "timestamp": datetime.utcnow().isoformat(),
+            **kwargs
+        }
+        redis_client.publish("build_progress", json.dumps(message))
+        logger.debug(f"Published {message_type} for job {job_id}")
+    except Exception as e:
+        logger.error(f"Failed to publish build progress: {e}")
 
 
 class DatabaseTask(Task):
@@ -197,6 +229,14 @@ def run_build(self, job_id: int):
         job.celery_task_id = self.request.id
         self.db.commit()
 
+        # Publish initial status
+        publish_build_progress(
+            job_id,
+            "status",
+            status="running",
+            step="Initializing build"
+        )
+
         # Get project files
         project = job.project
         config = job.config or {}
@@ -216,6 +256,13 @@ def run_build(self, job_id: int):
         logs.append(f"Project: {project.name}\n")
         logs.append(f"Work directory: {work_dir}\n\n")
 
+        # Publish progress update
+        publish_build_progress(
+            job_id,
+            "log",
+            message=f"Starting LibreLane ASIC Build Flow\nJob ID: {job_id}\nProject: {project.name}"
+        )
+
         # Extract LibreLane configuration
         design_name = config.get("design_name", project.name)
         pdk = config.get("pdk", "sky130_fd_sc_hd")
@@ -231,6 +278,13 @@ def run_build(self, job_id: int):
 
         # Write project files to design directory
         logs.append("Writing design files...\n")
+        publish_build_progress(
+            job_id,
+            "status",
+            status="running",
+            step="Writing design files"
+        )
+
         written_files = []
         for file in project.files:
             file_path = design_dir / file.filepath
@@ -239,6 +293,11 @@ def run_build(self, job_id: int):
                 file_path.write_text(file.content)
                 written_files.append(file.filepath)
                 logs.append(f"  - {file.filepath}\n")
+                publish_build_progress(
+                    job_id,
+                    "log",
+                    message=f"  - {file.filepath}"
+                )
 
         if not written_files:
             raise Exception("No Verilog files found in project")
@@ -287,6 +346,18 @@ def run_build(self, job_id: int):
         logs.append("Generated LibreLane config.json\n\n")
         logs.append("=== Starting ASIC Flow ===\n\n")
 
+        publish_build_progress(
+            job_id,
+            "status",
+            status="running",
+            step="Running LibreLane ASIC flow"
+        )
+        publish_build_progress(
+            job_id,
+            "log",
+            message="=== Starting ASIC Flow ==="
+        )
+
         # Run LibreLane
         if use_docker:
             # Run LibreLane in Docker container
@@ -306,23 +377,31 @@ def run_build(self, job_id: int):
 
             logs.append(f"Command: {' '.join(cmd)}\n\n")
 
-            # Execute LibreLane flow
-            result = subprocess.run(
+            # Execute LibreLane flow with real-time output
+            process = subprocess.Popen(
                 cmd,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                timeout=settings.WORKER_TIMEOUT
+                bufsize=1
             )
 
             logs.append("=== LibreLane Output ===\n")
-            logs.append(result.stdout)
 
-            if result.stderr:
-                logs.append("\n=== Warnings/Errors ===\n")
-                logs.append(result.stderr)
+            # Stream output in real-time
+            for line in process.stdout:
+                logs.append(line)
+                # Publish each line of output
+                publish_build_progress(
+                    job_id,
+                    "log",
+                    message=line.rstrip()
+                )
 
-            if result.returncode != 0:
-                raise Exception(f"LibreLane failed with exit code {result.returncode}")
+            process.wait(timeout=settings.WORKER_TIMEOUT)
+
+            if process.returncode != 0:
+                raise Exception(f"LibreLane failed with exit code {process.returncode}")
 
         else:
             # Run LibreLane locally (requires LibreLane installation)
@@ -358,6 +437,18 @@ def run_build(self, job_id: int):
         logs.append("\n\n=== Build Complete ===\n")
         logs.append("Checking for output artifacts...\n")
 
+        publish_build_progress(
+            job_id,
+            "status",
+            status="running",
+            step="Collecting artifacts"
+        )
+        publish_build_progress(
+            job_id,
+            "log",
+            message="=== Build Complete ===\nChecking for output artifacts..."
+        )
+
         # Find the run directory (LibreLane creates runs/RUN_<timestamp>)
         run_dirs = list(runs_dir.glob("RUN_*"))
         if run_dirs:
@@ -391,6 +482,15 @@ def run_build(self, job_id: int):
         job.artifacts_path = artifacts_path
         self.db.commit()
 
+        # Publish completion message
+        publish_build_progress(
+            job_id,
+            "complete",
+            status="completed",
+            message="Build completed successfully",
+            artifacts_path=artifacts_path
+        )
+
         logger.info(f"Build job {job_id} completed successfully")
 
         return {
@@ -410,6 +510,14 @@ def run_build(self, job_id: int):
         job.logs = "\n".join(logs)
         self.db.commit()
 
+        # Publish error message
+        publish_build_progress(
+            job_id,
+            "error",
+            status="failed",
+            message=error_msg
+        )
+
         return {
             "status": "error",
             "job_id": job_id,
@@ -426,6 +534,14 @@ def run_build(self, job_id: int):
         job.error_message = str(e)
         job.logs = "\n".join(logs)
         self.db.commit()
+
+        # Publish error message
+        publish_build_progress(
+            job_id,
+            "error",
+            status="failed",
+            message=str(e)
+        )
 
         return {
             "status": "error",
