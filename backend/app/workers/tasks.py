@@ -5,6 +5,7 @@ from celery import Task
 from datetime import datetime
 import subprocess
 import logging
+import httpx
 from pathlib import Path
 
 from app.workers.celery_app import celery_app
@@ -13,6 +14,8 @@ from app.models.job import Job, JobStatus
 from app.core.config import settings
 from app.services.storage import storage_service
 from app.workers.publisher import publisher
+
+from librelane.container import run_in_container
 
 logger = logging.getLogger(__name__)
 
@@ -288,6 +291,64 @@ def detect_librelane_step(log_line):
 
     return (None, None)
 
+def image_exists(ce_path: str, image: str) -> bool:
+    images = (
+        subprocess.check_output([ce_path, "images", image])
+        .decode("utf8")
+        .rstrip()
+        .split("\n")[1:]
+    )
+    return len(images) >= 1
+
+
+def remote_manifest_exists(image: str) -> bool:
+    registry = "docker.io"
+    image_elements = image.split("/", maxsplit=1)
+    if len(image_elements) > 1:
+        registry = image_elements[0]
+        image = image_elements[1]
+    elements = image.split(":")
+    repo = elements[0]
+    tag = "latest"
+    if len(elements) > 1:
+        tag = elements[1]
+
+    url = None
+    if registry == "docker.io":
+        url = f"https://registry.hub.docker.com/v2/repositories/{repo}/tags/{tag}"
+    elif registry == "ghcr.io":
+        url = f"https://ghcr.io/v2/{repo}/manifests/{tag}"
+    else:
+        logger.error(f"Unknown registry '{registry}'.")
+        return False
+
+    try:
+        httpx.Client(follow_redirects=True).get(
+            url, headers={"Accept": "application/json"}
+        )
+    except httpx.NetworkError:
+        logger.error("Couldn't connect to the internet to pull container images.")
+        return False
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            f"The image {image} was not found. This may be because the CI for this image is running- in which case, please try again later. (error: {e})"
+        )
+        return False
+    return True
+
+
+def ensure_image(ce_path: str, image: str) -> bool:
+    if image_exists(ce_path, image):
+        return True
+
+    try:
+        subprocess.check_call([ce_path, "pull", image])
+    except subprocess.CalledProcessError:
+        logger.error(f"Failed to pull image '{image}' from the container registries.")
+        return False
+
+    return True
+
 
 @celery_app.task(bind=True, base=DatabaseTask)
 def run_build(self, job_id: int):
@@ -447,6 +508,9 @@ def run_build(self, job_id: int):
         update_build_progress(self.db, job, "initialization", 0, completed_steps)
 
         # Run LibreLane
+        use_docker = True
+        version = "2.4.5"
+        docker_image =  f"ghcr.io/librelane/librelane:{version}"
         if use_docker:
             # Run LibreLane in Docker container using the openlane CLI
             start_log = f"Running LibreLane/OpenLane in Docker container: {docker_image}\n\n"
@@ -457,16 +521,23 @@ def run_build(self, job_id: int):
             # The openlane command is the CLI entry point in the Docker image
             # Note: Using -i for interactive mode to capture logs properly
             # Not using -t because TTY doesn't work well with subprocess.PIPE
-            cmd = [
+            # Build command arguments
+            argv = ["python3", "-m", "librelane", "config.json"]
+            # argv = ["ls","/work"]
+
+            # Add config files
+            if not ensure_image("docker", docker_image):
+                    raise ValueError(f"Failed to use image '{docker_image}'.")
+            cmd = ([
                 "docker", "run",
                 "--rm",
-                "-i",  # Interactive mode for proper log streaming
-                "-v", f"{work_dir}:/work",
+                "-i",  # Interactive mode for proper log streaming   "-v", f"{work_dir}:/work",
+                "-v", f"/home/arc/Data/a6hub-data/storage/job_{job_id}:/work",
                 "-w", "/work",
                 docker_image,
-                "openlane",
-                "/work/config.json"
             ]
+            + list(argv)
+            )
 
             cmd_log = f"Command: {' '.join(cmd)}\n\n=== LibreLane Output ===\n"
             logs.append(cmd_log)
@@ -537,15 +608,26 @@ def run_build(self, job_id: int):
             append_job_logs(self.db, job, cmd_log)
 
             # Execute LibreLane flow with real-time output processing
-            process = subprocess.Popen(
-                cmd,
-                cwd=work_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1
-            )
+            # process = subprocess.Popen(
+            #     cmd,
+            #     cwd=work_dir,
+            #     stdout=subprocess.PIPE,
+            #     stderr=subprocess.STDOUT,
+            #     text=True,
+            #     bufsize=1
+            # )
 
+             # Run in container
+            container_image = f"ghcr.io/librelane/librelane:latest"
+            docker_mounts = None
+            run_in_container(
+                container_image,
+                cmd,
+                pdk_root=settings.PDK_ROOT,
+                other_mounts=docker_mounts,
+                tty=True,
+            )
+        
             # Process output line by line
             output_lines = []
             for line in iter(process.stdout.readline, ''):
