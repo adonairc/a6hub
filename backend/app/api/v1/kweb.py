@@ -184,61 +184,34 @@ async def view_gds_file(
 
             logger.info(f"Prepared GDS file for viewing: {file_path}")
 
-            # If kweb is available, use it to render the GDS
-            if KWEB_AVAILABLE:
-                try:
-                    # Get the project directory for kweb
-                    project_dir = kweb_service.get_project_dir(project_id)
-
-                    # Create kweb app instance with the project directory
-                    kweb_app = get_kweb_app(path=project_dir)
-
-                    # Call kweb's viewer endpoint
-                    async with kweb_app.router.lifespan_context(kweb_app):
-                        # Get the GDS viewer HTML from kweb
-                        kweb_request = Request(
-                            scope={
-                                "type": "http",
-                                "method": "GET",
-                                "path": f"/gds/{filename}",
-                                "query_string": b"",
-                                "headers": [],
-                            }
-                        )
-
-                        # Call kweb to get the viewer HTML
-                        # For now, we'll use a simpler approach - just redirect to kweb's static viewer
-                        viewer_html = f"""
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <title>KLayout GDS Viewer - {filename}</title>
-                            <meta charset="utf-8">
-                            <style>
-                                body, html {{
-                                    margin: 0;
-                                    padding: 0;
-                                    height: 100%;
-                                    overflow: hidden;
-                                }}
-                                iframe {{
-                                    width: 100%;
-                                    height: 100%;
-                                    border: none;
-                                }}
-                            </style>
-                        </head>
-                        <body>
-                            <iframe src="/api/v1/kweb/viewer/{project_id}/{filename}?token={token}" title="KLayout GDS Viewer"></iframe>
-                        </body>
-                        </html>
-                        """
-
-                        return HTMLResponse(content=viewer_html)
-
-                except Exception as e:
-                    logger.error(f"Error rendering with kweb: {e}")
-                    # Fall through to placeholder
+            # If kweb is available, return HTML that iframes the viewer
+            if KWEB_AVAILABLE and kweb_app:
+                viewer_html = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>KLayout GDS Viewer - {filename}</title>
+                    <meta charset="utf-8">
+                    <style>
+                        body, html {{
+                            margin: 0;
+                            padding: 0;
+                            height: 100%;
+                            overflow: hidden;
+                        }}
+                        iframe {{
+                            width: 100%;
+                            height: 100%;
+                            border: none;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <iframe src="/api/v1/kweb/viewer/{project_id}/{filename}?token={token}" title="KLayout GDS Viewer"></iframe>
+                </body>
+                </html>
+                """
+                return HTMLResponse(content=viewer_html)
 
         except Exception as e:
             logger.error(f"Error preparing GDS file: {e}")
