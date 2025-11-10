@@ -23,8 +23,9 @@ flower==2.0.1  # Celery monitoring dashboard
 # Storage
 minio==7.2.0
 
-# GDS Viewer
+# GDS Viewer and Generation
 kweb>=0.1.0
+gdsfactory>=7.0.0
 
 # ASIC Design Flow
 librelane>=2.4.0
