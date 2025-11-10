@@ -448,20 +448,23 @@ def run_build(self, job_id: int):
 
         # Run LibreLane
         if use_docker:
-            # Run LibreLane in Docker container
-            start_log = f"Running LibreLane in Docker container: {docker_image}\n\n"
+            # Run LibreLane in Docker container using the openlane CLI
+            start_log = f"Running LibreLane/OpenLane in Docker container: {docker_image}\n\n"
             logs.append(start_log)
             append_job_logs(self.db, job, start_log)
 
-            # Docker command to run LibreLane
-            # The image requires explicit command to execute LibreLane
+            # Docker command to run OpenLane/LibreLane
+            # The openlane command is the CLI entry point in the Docker image
             cmd = [
                 "docker", "run",
                 "--rm",
+                "-i",  # Interactive mode for log capture
+                "-t",  # Allocate a pseudo-TTY for better output formatting
                 "-v", f"{work_dir}:/work",
                 "-w", "/work",
                 docker_image,
-                "openlane", "/work/config.json"
+                "openlane",
+                "/work/config.json"
             ]
 
             cmd_log = f"Command: {' '.join(cmd)}\n\n=== LibreLane Output ===\n"
