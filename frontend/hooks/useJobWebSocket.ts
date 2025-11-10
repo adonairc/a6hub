@@ -22,7 +22,7 @@ export interface JobUpdate {
 }
 
 interface UseJobWebSocketOptions {
-  jobId: number;
+  jobId?: number;
   onStatusChange?: (status: string) => void;
   onProgressUpdate?: (progress: number, step: string, completedSteps: string[]) => void;
   onLogUpdate?: (logLine: string) => void;
@@ -53,7 +53,7 @@ export function useJobWebSocket(options: UseJobWebSocketOptions) {
   const reconnectDelay = 3000; // 3 seconds
 
   const connect = useCallback(() => {
-    if (!enabled || wsRef.current?.readyState === WebSocket.OPEN) {
+    if (!enabled || !jobId || wsRef.current?.readyState === WebSocket.OPEN) {
       return;
     }
 
