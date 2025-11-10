@@ -460,6 +460,7 @@ def run_build(self, job_id: int):
                 "-v", f"{work_dir}:/work",
                 "-w", "/work",
                 docker_image,
+                "python3", "-m", "librelane",
                 "--dockerized",
                 f"--pdk-root=/root/.ciel",
                 "/work/config.json"
