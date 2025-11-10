@@ -6,11 +6,11 @@ This document describes the LibreLane integration added to a6hub for orchestrati
 
 The LibreLane integration enables users to:
 - Configure ASIC build flows with a user-friendly interface
-- Run complete RTL-to-GDSII flows using LibreLane Python library (or Docker as alternative)
+- Run complete RTL-to-GDSII flows using LibreLane in Docker (or Python library as alternative)
 - Track build progress and view results
 - Use pre-configured flow presets for common scenarios
 
-**Note:** a6hub uses LibreLane as a Python library by default. See `backend/LIBRELANE_PYTHON_SETUP.md` for installation. Docker mode is available as a fallback.
+**Note:** a6hub uses LibreLane in Docker by default for consistent, reproducible builds. Python library mode is available as an alternative. See `backend/LIBRELANE_PYTHON_SETUP.md` for Python installation.
 
 ## Architecture
 

@@ -343,7 +343,7 @@ def run_build(self, job_id: int):
         pdk = config.get("pdk", "sky130A")
         # Use 'or []' to handle None values (when explicitly set to null in config)
         verilog_files = config.get("verilog_files") or []
-        use_docker = config.get("use_docker", False)  # Default to Python LibreLane
+        use_docker = config.get("use_docker", True)  # Default to Docker for consistent environment
         docker_image = config.get("docker_image", "efabless/openlane:latest")
 
         config_log = f"Configuration:\n"

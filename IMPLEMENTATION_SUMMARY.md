@@ -137,18 +137,7 @@ librelane>=2.4.0
 
 LibreLane supports two execution modes:
 
-**a) Python Library (Default - Recommended)**
-```bash
-python3 -m librelane --pdk-root=/root/.ciel /work/config.json
-```
-
-Benefits:
-- Faster execution (no container overhead)
-- Direct access to logs and artifacts
-- Easier debugging
-- Simpler setup (~5GB PDK vs ~10GB image + PDK)
-
-**b) Docker Container (Optional)**
+**a) Docker Container (Default - Recommended)**
 ```bash
 docker run --rm \
   -v /work:/work \
@@ -158,6 +147,23 @@ docker run --rm \
   --pdk-root=/root/.ciel \
   /work/config.json
 ```
+
+Benefits:
+- Consistent environment across all systems
+- Pre-configured with all EDA tools
+- No local installation required
+- Reproducible builds
+
+**b) Python Library (Optional)**
+```bash
+python3 -m librelane --pdk-root=/root/.ciel /work/config.json
+```
+
+Benefits:
+- Faster execution (no container overhead)
+- Direct access to logs and artifacts
+- Easier debugging
+- Smaller disk footprint (~5GB PDK vs ~10GB image + PDK)
 
 #### Build Worker Implementation
 
@@ -259,7 +265,7 @@ class LibreLaneBuildConfig:
     pdk: str = "sky130A"
     clock_period: str = "10"
     verilog_files: List[str] = []
-    use_docker: bool = False
+    use_docker: bool = True  # Default to Docker for consistent environment
     docker_image: str = "efabless/openlane:latest"
     extra_args: Dict[str, Any] = {}
 ```

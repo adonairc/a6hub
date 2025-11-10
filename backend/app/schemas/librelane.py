@@ -103,12 +103,12 @@ class LibreLaneFlowConfig(BaseModel):
 
     # Execution options
     use_docker: bool = Field(
-        default=False,
-        description="Run in Docker container (False = use local LibreLane Python installation, recommended)"
+        default=True,
+        description="Run in Docker container (recommended for consistent environment)"
     )
     docker_image: str = Field(
         default="efabless/openlane:latest",
-        description="Docker image to use if use_docker=True. Options: efabless/openlane:latest, ghcr.io/efabless/openlane2:2.3.1"
+        description="Docker image to use. Options: efabless/openlane:latest, ghcr.io/efabless/openlane2:2.3.1"
     )
 
     # Advanced options
