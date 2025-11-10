@@ -6,11 +6,11 @@ This document describes the LibreLane integration added to a6hub for orchestrati
 
 The LibreLane integration enables users to:
 - Configure ASIC build flows with a user-friendly interface
-- Run complete RTL-to-GDSII flows using LibreLane Python library (or Docker as alternative)
+- Run complete RTL-to-GDSII flows using LibreLane in Docker (or Python library as alternative)
 - Track build progress and view results
 - Use pre-configured flow presets for common scenarios
 
-**Note:** a6hub uses LibreLane as a Python library by default. See `backend/LIBRELANE_PYTHON_SETUP.md` for installation. Docker mode is available as a fallback.
+**Note:** a6hub uses LibreLane in Docker by default for consistent, reproducible builds. Python library mode is available as an alternative. See `backend/LIBRELANE_PYTHON_SETUP.md` for Python installation.
 
 ## Architecture
 
@@ -43,18 +43,16 @@ Enhanced `run_build` task that:
 - Identifies and reports generated artifacts (GDSII, reports)
 - Handles timeouts and errors gracefully
 
-**Docker Command:**
+**Docker Command (LibreLane/OpenLane 2):**
 ```bash
 docker run --rm \
   -v /work:/work \
   -w /work \
-  efabless/openlane:latest \
-  --dockerized \
-  --pdk-root=/root/.ciel \
+  ghcr.io/efabless/openlane2:latest \
   /work/config.json
 ```
 
-**Note:** The default Docker image is `efabless/openlane:latest` (OpenLane v1). For other options, see `backend/OPENLANE_DOCKER_SETUP.md`.
+**Note:** The default Docker image is `ghcr.io/efabless/openlane2:latest` which includes LibreLane. The image has its own entrypoint that handles execution.
 
 #### 3. Build API Endpoints (`app/api/v1/builds.py`)
 

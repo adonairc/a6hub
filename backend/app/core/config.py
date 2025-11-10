@@ -77,8 +77,8 @@ class Settings(BaseSettings):
     YOSYS_PATH: str = "/usr/bin/yosys"
     
     # Storage paths
-    STORAGE_BASE_PATH: str = "/tmp/a6hub-storage"
-    GIT_REPOS_PATH: str = "/tmp/a6hub-repos"
+    STORAGE_BASE_PATH: str = "/a6hub-storage"
+    GIT_REPOS_PATH: str = "/a6hub-repos"
     
     # EDA Tools paths (in worker containers)
     LIBRELANE_PATH: str = "/opt/librelane"

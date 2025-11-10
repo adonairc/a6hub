@@ -11,7 +11,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - /home/arc/Data/a6hub-data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U a6hub"]
       interval: 10s
@@ -25,7 +25,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - /home/arc/Data/a6hub-data/redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -44,7 +44,7 @@ services:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - minio_data:/data
+      - /home/arc/Data/a6hub-data/minio:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -71,8 +71,8 @@ services:
       - "8000:8000"
     volumes:
       - ./:/app
-      - storage_data:/tmp/a6hub-storage
-      - repos_data:/tmp/a6hub-repos
+      - /home/arc/Data/a6hub-data/storage:/a6hub-storage
+      - /home/arc/Data/a6hub-data/repos:/a6hub-repos
     depends_on:
       postgres:
         condition: service_healthy
@@ -104,8 +104,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     volumes:
       - ./:/app
-      - storage_data:/tmp/a6hub-storage
-      - repos_data:/tmp/a6hub-repos
+      - /home/arc/Data/a6hub-data/storage:/a6hub-storage
       - /var/run/docker.sock:/var/run/docker.sock  # Mount Docker socket for LibreLane
     depends_on:
       redis:
@@ -129,10 +128,3 @@ services:
       - celery-worker
     command: celery -A app.workers.celery_app flower --port=5555
     restart: unless-stopped
-
-volumes:
-  postgres_data:
-  redis_data:
-  minio_data:
-  storage_data:
-  repos_data:

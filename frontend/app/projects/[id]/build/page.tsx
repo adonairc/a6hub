@@ -118,15 +118,18 @@ export default function BuildPage() {
   }, [projectId]);
 
   // WebSocket connection for real-time build updates
+  const isWebSocketActiveRef = useRef(false);
   const { isConnected, connectionError } = useJobWebSocket({
     jobId: buildStatus?.job_id,
     enabled: !!buildStatus && buildStatus.status === 'running',
 
     onStatusChange: (status) => {
+      isWebSocketActiveRef.current = true;
       setBuildStatus((prev) => prev ? { ...prev, status } : null);
     },
 
     onProgressUpdate: (progress, step, completedSteps) => {
+      isWebSocketActiveRef.current = true;
       setBuildStatus((prev) => {
         if (!prev) return null;
         return {
@@ -143,6 +146,7 @@ export default function BuildPage() {
     },
 
     onLogUpdate: (logLine) => {
+      isWebSocketActiveRef.current = true;
       setBuildStatus((prev) => {
         if (!prev) return null;
         return {
@@ -153,10 +157,12 @@ export default function BuildPage() {
     },
 
     onStepChange: (stepName, stepLabel) => {
+      isWebSocketActiveRef.current = true;
       console.log(`Build step: ${stepLabel}`);
     },
 
     onComplete: (status, message) => {
+      isWebSocketActiveRef.current = true;
       setBuildStatus((prev) => prev ? { ...prev, status } : null);
       if (status === 'completed') {
         toast.success('Build completed successfully!');
@@ -168,6 +174,7 @@ export default function BuildPage() {
     },
 
     onError: (errorMessage) => {
+      isWebSocketActiveRef.current = true;
       toast.error(errorMessage);
     }
   });
@@ -176,11 +183,37 @@ export default function BuildPage() {
     if (!config) return;
 
     setBuilding(true);
+    isWebSocketActiveRef.current = false;
+
     try {
-      await buildsAPI.startBuild(projectId, { config });
-      toast.success('Build started! Check the status below.');
+      const response = await buildsAPI.startBuild(projectId, { config });
+      toast.success('Build started! Connecting to live updates...');
       console.log("config = ",config)
+
+      // Immediately load build status to get job_id and connect WebSocket
       await loadBuildStatus();
+
+      // Poll for updates every 1 second for the first 15 seconds to ensure we catch early logs
+      // This provides a fallback while WebSocket is connecting
+      let pollCount = 0;
+      const pollInterval = setInterval(async () => {
+        pollCount++;
+
+        // Stop polling if WebSocket becomes active
+        if (isWebSocketActiveRef.current) {
+          console.log('[Build] WebSocket active, stopping polling');
+          clearInterval(pollInterval);
+          return;
+        }
+
+        await loadBuildStatus();
+
+        // Stop polling after 15 seconds
+        if (pollCount >= 15) {
+          console.log('[Build] Polling timeout, WebSocket should take over');
+          clearInterval(pollInterval);
+        }
+      }, 1000);
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to start build');
     } finally {
@@ -544,14 +577,37 @@ export default function BuildPage() {
         </div>
 
         {/* Logs Viewer - Full width section */}
-        {buildStatus && buildStatus.logs && (
+        {buildStatus && (
           <div className="mt-6">
-            <LogViewer
-              logs={buildStatus.logs}
-              title={`Build Logs - Job #${buildStatus.job_id}`}
-              autoScroll={buildStatus.status === 'running'}
-              maxHeight="600px"
-            />
+            <div className="bg-white border border-gray-200">
+              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200">
+                <h3 className="font-semibold">Build Logs - Job #{buildStatus.job_id}</h3>
+                <button
+                  onClick={loadBuildStatus}
+                  className="flex items-center gap-2 px-3 py-1 text-sm border border-gray-300 hover:bg-gray-50 transition-colors"
+                  title="Refresh logs"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+              {buildStatus.logs ? (
+                <div className="p-6">
+                  <LogViewer
+                    logs={buildStatus.logs}
+                    title=""
+                    autoScroll={buildStatus.status === 'running'}
+                    maxHeight="600px"
+                  />
+                </div>
+              ) : (
+                <div className="p-6 text-center text-gray-500">
+                  {buildStatus.status === 'running' ? 'Waiting for logs...' : 'No logs available'}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
