@@ -43,26 +43,63 @@ except Exception as e:
     logger.error(f"Failed to import KWeb: {e}")
 
 
-async def call_kweb_internal(path: str) -> Optional[httpx.Response]:
+async def call_kweb_internal(path: str, request: Request) -> Optional[Response]:
     """
-    Make async internal request to mounted kweb app
+    Make internal request to mounted kweb app by forwarding the request
 
     Args:
         path: Path to request from kweb (e.g., "/gds/file.gds")
+        request: Original FastAPI request object
 
     Returns:
-        httpx.Response or None if failed
+        Response or None if failed
     """
     if not KWEB_AVAILABLE:
         return None
 
     try:
-        # Use httpx to make async request to the mounted kweb app
-        async with httpx.AsyncClient(base_url="http://localhost:8000") as client:
-            response = await client.get(f"/kweb-internal{path}")
-            return response
+        # Import the main app to access the mounted kweb
+        from main import app
+
+        # Create a new scope for the kweb request
+        scope = dict(request.scope)
+        scope["path"] = f"/kweb-internal{path}"
+        scope["root_path"] = ""
+
+        # Create response container
+        response_started = False
+        status_code = 200
+        headers_list = []
+        body_parts = []
+
+        async def receive():
+            return {"type": "http.request", "body": b""}
+
+        async def send(message):
+            nonlocal response_started, status_code, headers_list, body_parts
+
+            if message["type"] == "http.response.start":
+                response_started = True
+                status_code = message["status"]
+                headers_list = message.get("headers", [])
+            elif message["type"] == "http.response.body":
+                body_parts.append(message.get("body", b""))
+
+        # Call the mounted app
+        await app(scope, receive, send)
+
+        # Construct response
+        body = b"".join(body_parts)
+        headers = {k.decode(): v.decode() for k, v in headers_list}
+
+        return Response(
+            content=body,
+            status_code=status_code,
+            headers=headers
+        )
+
     except Exception as e:
-        logger.error(f"Failed to call kweb internal: {e}")
+        logger.error(f"Failed to call kweb internal: {e}", exc_info=True)
         return None
 
 
@@ -409,19 +446,15 @@ async def kweb_viewer_direct(
     # KWeb expects: /gds/<filename>
     # Files are stored with flat naming: project_{id}_{filename}
     try:
-        kweb_response = await call_kweb_internal(f"/gds/{kweb_filename}")
+        kweb_response = await call_kweb_internal(f"/gds/{kweb_filename}", request)
 
         if kweb_response and kweb_response.status_code == 200:
             logger.info(f"KWeb response status: {kweb_response.status_code}")
-            return HTMLResponse(
-                content=kweb_response.text,
-                status_code=kweb_response.status_code,
-                headers=dict(kweb_response.headers)
-            )
+            return kweb_response
         else:
             if kweb_response:
                 logger.warning(f"KWeb returned status {kweb_response.status_code}")
-                logger.error(f"KWeb response body: {kweb_response.text[:500]}")
+                logger.error(f"KWeb response body (first 500 chars): {kweb_response.body[:500] if kweb_response.body else 'empty'}")
             else:
                 logger.error("Failed to get response from kweb")
 
@@ -520,14 +553,14 @@ async def kweb_viewer_direct(
 
 
 @router.get("/debug/list-files")
-async def debug_list_kweb_files():
+async def debug_list_kweb_files(request: Request):
     """Debug endpoint to see what files kweb can access"""
     if not KWEB_AVAILABLE:
         return {"error": "KWeb not available"}
 
     try:
         # Call kweb root
-        response = await call_kweb_internal("/")
+        response = await call_kweb_internal("/", request)
 
         # List files in temp_dir
         temp_dir_files = [str(f) for f in Path(kweb_service.temp_dir).iterdir()]
@@ -540,7 +573,7 @@ async def debug_list_kweb_files():
 
         if response:
             result["kweb_root_status"] = response.status_code
-            result["kweb_root_response"] = response.text[:500] if response.status_code == 200 else response.text
+            result["kweb_root_body"] = str(response.body[:500] if response.body else "empty")
         else:
             result["kweb_root_status"] = "No response"
 
@@ -550,7 +583,7 @@ async def debug_list_kweb_files():
 
 
 @router.get("/assets/{path:path}")
-async def serve_kweb_assets(path: str):
+async def serve_kweb_assets(path: str, request: Request):
     """
     Serve static assets from kweb (JS, CSS, fonts, etc.)
 
@@ -561,17 +594,10 @@ async def serve_kweb_assets(path: str):
 
     try:
         # Call kweb for asset
-        kweb_response = await call_kweb_internal(f"/{path}")
+        kweb_response = await call_kweb_internal(f"/{path}", request)
 
         if kweb_response and kweb_response.status_code == 200:
-            # Determine content type based on file extension
-            content_type = kweb_response.headers.get("content-type", "application/octet-stream")
-
-            return Response(
-                content=kweb_response.content,
-                media_type=content_type,
-                headers=dict(kweb_response.headers)
-            )
+            return kweb_response
         elif kweb_response:
             raise HTTPException(status_code=kweb_response.status_code, detail="Asset not found")
         else:
