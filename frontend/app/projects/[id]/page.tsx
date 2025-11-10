@@ -39,6 +39,7 @@ export default function DesignPage() {
   const [showGdsViewer, setShowGdsViewer] = useState(false);
   const [gdsViewerHeight, setGdsViewerHeight] = useState(400);
   const [authToken, setAuthToken] = useState<string>('');
+  const [isRunning, setIsRunning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resizeRef = useRef<HTMLDivElement>(null);
 
@@ -249,6 +250,51 @@ export default function DesignPage() {
     return `${baseName}.gds`;
   };
 
+  // Run Python script to generate GDS
+  const runPythonScript = async () => {
+    if (!activeFile) return;
+
+    setIsRunning(true);
+    try {
+      const response = await filesAPI.update(projectId, activeFile.id, {
+        content: editorContent
+      });
+
+      // Trigger script execution
+      const runResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/projects/${projectId}/files/${activeFile.id}/run`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`,
+          },
+        }
+      );
+
+      if (!runResponse.ok) {
+        throw new Error('Failed to run script');
+      }
+
+      const result = await runResponse.json();
+      toast.success('Script execution started! GDS file will be generated.');
+
+      // Reload the GDS viewer after a delay
+      setTimeout(() => {
+        // Force iframe reload
+        const iframe = document.querySelector('iframe[title="KLayout GDS Viewer"]') as HTMLIFrameElement;
+        if (iframe) {
+          iframe.src = iframe.src;
+        }
+      }, 3000);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to run script');
+      console.error('Run error:', error);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -411,12 +457,28 @@ export default function DesignPage() {
                           <span className="text-sm font-medium text-white">KLayout GDS Viewer</span>
                           <span className="text-xs text-gray-400">({getGdsFilename(activeFile.filename)})</span>
                         </div>
-                        <button
-                          onClick={() => setShowGdsViewer(false)}
-                          className="text-gray-400 hover:text-white text-sm"
-                        >
-                          Hide
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={runPythonScript}
+                            disabled={isRunning}
+                            className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                          >
+                            {isRunning ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                Running...
+                              </>
+                            ) : (
+                              '▶ Run'
+                            )}
+                          </button>
+                          <button
+                            onClick={() => setShowGdsViewer(false)}
+                            className="text-gray-400 hover:text-white text-sm"
+                          >
+                            Hide
+                          </button>
+                        </div>
                       </div>
                       <div className="flex-1 bg-white">
                         <iframe

@@ -754,3 +754,191 @@ def run_build(self, job_id: int):
             "job_id": job_id,
             "message": str(e)
         }
+
+
+@celery_app.task(bind=True, base=DatabaseTask)
+def run_python_script(self, project_id: int, file_id: int):
+    """
+    Execute Python gdsfactory script and save generated GDS to MinIO
+
+    Args:
+        project_id: Project ID
+        file_id: Python file ID to execute
+
+    Returns:
+        dict: Execution results including status and generated GDS file info
+    """
+    logger.info(f"Starting Python script execution for file {file_id} in project {project_id}")
+
+    from app.models.project_file import ProjectFile
+
+    # Get the Python file from database
+    python_file = self.db.query(ProjectFile).filter(
+        ProjectFile.id == file_id,
+        ProjectFile.project_id == project_id
+    ).first()
+
+    if not python_file:
+        logger.error(f"File {file_id} not found")
+        return {"status": "error", "message": "File not found"}
+
+    try:
+        # Create temporary work directory
+        work_dir = Path(settings.STORAGE_BASE_PATH) / f"python_exec_{project_id}_{file_id}"
+        work_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"Work directory: {work_dir}")
+
+        # Download Python file from MinIO
+        if python_file.minio_bucket and python_file.minio_key:
+            file_bytes = storage_service.download_file(python_file.minio_bucket, python_file.minio_key)
+            python_script_path = work_dir / python_file.filename
+            python_script_path.write_bytes(file_bytes)
+            logger.info(f"Downloaded Python script to {python_script_path}")
+        else:
+            raise Exception("Python file not found in storage")
+
+        # Execute Python script
+        cmd = ["python3", str(python_script_path)]
+
+        logger.info(f"Executing: {' '.join(cmd)}")
+
+        result = subprocess.run(
+            cmd,
+            cwd=work_dir,
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+
+        logger.info(f"Script execution completed with return code: {result.returncode}")
+        logger.info(f"STDOUT: {result.stdout}")
+        if result.stderr:
+            logger.warning(f"STDERR: {result.stderr}")
+
+        if result.returncode != 0:
+            raise Exception(f"Script failed with exit code {result.returncode}: {result.stderr}")
+
+        # Find generated GDS files
+        gds_files = list(work_dir.glob("*.gds"))
+
+        if not gds_files:
+            logger.warning("No GDS files found after script execution")
+            return {
+                "status": "success",
+                "message": "Script executed but no GDS files generated",
+                "stdout": result.stdout,
+                "stderr": result.stderr
+            }
+
+        # Upload GDS files to MinIO and create ProjectFile records
+        uploaded_gds_files = []
+
+        for gds_path in gds_files:
+            gds_filename = gds_path.name
+            logger.info(f"Found GDS file: {gds_filename}")
+
+            # Read GDS file
+            gds_bytes = gds_path.read_bytes()
+
+            # Check if GDS file already exists in project
+            existing_gds = self.db.query(ProjectFile).filter(
+                ProjectFile.project_id == project_id,
+                ProjectFile.filename == gds_filename
+            ).first()
+
+            if existing_gds:
+                # Update existing file
+                logger.info(f"Updating existing GDS file: {gds_filename}")
+
+                # Upload to MinIO
+                bucket, key, content_hash = storage_service.upload_file(
+                    gds_bytes,
+                    project_id,
+                    existing_gds.id,
+                    gds_filename,
+                    "application/octet-stream"
+                )
+
+                # Update file record
+                existing_gds.minio_bucket = bucket
+                existing_gds.minio_key = key
+                existing_gds.content_hash = content_hash
+                existing_gds.size_bytes = len(gds_bytes)
+                existing_gds.use_minio = True
+                self.db.commit()
+
+                uploaded_gds_files.append({
+                    "id": existing_gds.id,
+                    "filename": gds_filename,
+                    "size": len(gds_bytes),
+                    "action": "updated"
+                })
+            else:
+                # Create new file record
+                logger.info(f"Creating new GDS file: {gds_filename}")
+
+                new_gds = ProjectFile(
+                    filename=gds_filename,
+                    filepath=f"gds/{gds_filename}",
+                    size_bytes=len(gds_bytes),
+                    mime_type="application/octet-stream",
+                    project_id=project_id,
+                    use_minio=True
+                )
+
+                self.db.add(new_gds)
+                self.db.commit()
+                self.db.refresh(new_gds)
+
+                # Upload to MinIO
+                bucket, key, content_hash = storage_service.upload_file(
+                    gds_bytes,
+                    project_id,
+                    new_gds.id,
+                    gds_filename,
+                    "application/octet-stream"
+                )
+
+                # Update file record with MinIO info
+                new_gds.minio_bucket = bucket
+                new_gds.minio_key = key
+                new_gds.content_hash = content_hash
+                self.db.commit()
+
+                uploaded_gds_files.append({
+                    "id": new_gds.id,
+                    "filename": gds_filename,
+                    "size": len(gds_bytes),
+                    "action": "created"
+                })
+
+        # Clean up work directory
+        import shutil
+        shutil.rmtree(work_dir)
+        logger.info(f"Cleaned up work directory: {work_dir}")
+
+        logger.info(f"Successfully processed {len(uploaded_gds_files)} GDS files")
+
+        return {
+            "status": "success",
+            "message": f"Generated {len(uploaded_gds_files)} GDS file(s)",
+            "gds_files": uploaded_gds_files,
+            "stdout": result.stdout,
+            "stderr": result.stderr
+        }
+
+    except subprocess.TimeoutExpired:
+        error_msg = "Script execution timed out after 5 minutes"
+        logger.error(error_msg)
+        return {
+            "status": "error",
+            "message": error_msg
+        }
+
+    except Exception as e:
+        logger.error(f"Python script execution failed: {str(e)}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }

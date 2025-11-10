@@ -71,6 +71,10 @@ celery_app.conf.task_routes = {
         'queue': 'build',
         'routing_key': 'build.run',
     },
+    'app.workers.tasks.run_python_script': {
+        'queue': 'python',
+        'routing_key': 'python.run',
+    },
 }
 
 # Configure queue priorities (build jobs have higher priority)

@@ -507,3 +507,60 @@ async def delete_project_file(
     db.commit()
 
     return None
+
+
+@router.post("/{project_id}/files/{file_id}/run")
+async def run_python_file(
+    project_id: int,
+    file_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Execute a Python file (gdsfactory script) in a Celery worker
+
+    - Runs the Python script asynchronously
+    - Captures generated GDS files and saves them to MinIO
+    - Only project owner can run scripts
+    """
+    from app.workers.tasks import run_python_script
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+
+    check_project_access(project, current_user, write_access=True)
+
+    file = db.query(ProjectFile).filter(
+        ProjectFile.id == file_id,
+        ProjectFile.project_id == project_id
+    ).first()
+
+    if not file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found"
+        )
+
+    # Check if file is a Python file
+    if not file.filename.endswith('.py'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only Python files can be executed"
+        )
+
+    # Trigger Celery task
+    task = run_python_script.delay(project_id, file_id)
+
+    logger.info(f"Started Python script execution task {task.id} for file {file_id}")
+
+    return {
+        "message": "Script execution started",
+        "task_id": task.id,
+        "file_id": file_id,
+        "filename": file.filename
+    }
