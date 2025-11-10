@@ -379,19 +379,18 @@ async def kweb_viewer_direct(
             content=f"<html><body><h1>Error</h1><p>GDS file not found at path: {gds_path}</p></body></html>"
         )
 
+    # Get the flattened filename that kweb will use
+    kweb_filename = kweb_service.get_kweb_filename(project_id, filename)
+
     logger.info(f"GDS file verified at: {gds_path}")
     logger.info(f"KWeb temp_dir: {kweb_service.temp_dir}")
-    logger.info(f"Requesting kweb path: /gds/{project_id}/{filename}")
+    logger.info(f"Requesting kweb with flat filename: /gds/{kweb_filename}")
 
     # Proxy request to kweb app using TestClient
-    # KWeb expects the path format: /gds/<path_relative_to_fileslocation>
-    # Our files are in: temp_dir/{project_id}/{filename}
-    # So we need to pass: {project_id}/{filename}
-    relative_path = f"{project_id}/{filename}"
-
-    # Call kweb's endpoint via TestClient
+    # KWeb expects: /gds/<filename>
+    # Files are stored with flat naming: project_{id}_{filename}
     try:
-        kweb_response = kweb_client.get(f"/gds/{relative_path}")
+        kweb_response = kweb_client.get(f"/gds/{kweb_filename}")
 
         logger.info(f"KWeb response status: {kweb_response.status_code}")
         if kweb_response.status_code != 200:

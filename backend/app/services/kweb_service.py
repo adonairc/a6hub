@@ -21,9 +21,25 @@ class KWebService:
         self.temp_dir = Path(tempfile.mkdtemp(prefix="kweb_gds_"))
         logger.info(f"Initialized KWeb service with temp directory: {self.temp_dir}")
 
+    def _get_flat_filename(self, project_id: int, filename: str) -> str:
+        """
+        Generate a flat filename that includes project_id to avoid conflicts
+
+        Args:
+            project_id: Project ID
+            filename: Original GDS filename
+
+        Returns:
+            Flattened filename like "project_1_inverter.gds"
+        """
+        return f"project_{project_id}_{filename}"
+
     def save_gds_file(self, file_bytes: bytes, project_id: int, filename: str) -> str:
         """
         Save GDS file to temporary directory for kweb access
+
+        Files are saved with flat naming scheme (project_{id}_{filename})
+        to ensure kweb compatibility.
 
         Args:
             file_bytes: GDS file content as bytes
@@ -33,12 +49,10 @@ class KWebService:
         Returns:
             Path to saved GDS file
         """
-        # Create project-specific subdirectory
-        project_dir = self.temp_dir / str(project_id)
-        project_dir.mkdir(exist_ok=True)
+        # Use flat naming scheme for kweb compatibility
+        flat_filename = self._get_flat_filename(project_id, filename)
+        file_path = self.temp_dir / flat_filename
 
-        # Save file
-        file_path = project_dir / filename
         with open(file_path, 'wb') as f:
             f.write(file_bytes)
 
@@ -56,10 +70,24 @@ class KWebService:
         Returns:
             Path to GDS file or None if not found
         """
-        file_path = self.temp_dir / str(project_id) / filename
+        flat_filename = self._get_flat_filename(project_id, filename)
+        file_path = self.temp_dir / flat_filename
         if file_path.exists():
             return str(file_path)
         return None
+
+    def get_kweb_filename(self, project_id: int, filename: str) -> str:
+        """
+        Get the filename that kweb should use to access this file
+
+        Args:
+            project_id: Project ID
+            filename: Original GDS filename
+
+        Returns:
+            Flat filename for kweb access
+        """
+        return self._get_flat_filename(project_id, filename)
 
     def cleanup_project_files(self, project_id: int):
         """
@@ -68,30 +96,20 @@ class KWebService:
         Args:
             project_id: Project ID
         """
-        project_dir = self.temp_dir / str(project_id)
-        if project_dir.exists():
-            shutil.rmtree(project_dir)
-            logger.info(f"Cleaned up GDS files for project {project_id}")
+        # Find and remove all files matching project_{project_id}_*
+        pattern = f"project_{project_id}_*"
+        for file_path in self.temp_dir.glob(pattern):
+            if file_path.is_file():
+                file_path.unlink()
+                logger.info(f"Deleted GDS file: {file_path}")
+
+        logger.info(f"Cleaned up GDS files for project {project_id}")
 
     def cleanup(self):
         """Clean up all temporary files"""
         if self.temp_dir.exists():
             shutil.rmtree(self.temp_dir)
             logger.info(f"Cleaned up KWeb temp directory: {self.temp_dir}")
-
-    def get_project_dir(self, project_id: int) -> str:
-        """
-        Get the directory path for a project's GDS files
-
-        Args:
-            project_id: Project ID
-
-        Returns:
-            Path to project directory
-        """
-        project_dir = self.temp_dir / str(project_id)
-        project_dir.mkdir(exist_ok=True)
-        return str(project_dir)
 
 
 # Global instance
