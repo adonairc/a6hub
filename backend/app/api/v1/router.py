@@ -3,7 +3,7 @@ Main API router - combines all endpoint routers
 """
 from fastapi import APIRouter
 
-from app.api.v1 import auth, projects, files, jobs, builds, forum, modules
+from app.api.v1 import auth, projects, files, jobs, builds, forum, modules, kweb
 
 api_router = APIRouter()
 
@@ -48,4 +48,10 @@ api_router.include_router(
     forum.router,
     prefix="/forum",
     tags=["forum"]
+)
+
+api_router.include_router(
+    kweb.router,
+    prefix="/kweb",
+    tags=["kweb"]
 )

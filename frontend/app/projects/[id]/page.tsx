@@ -36,11 +36,23 @@ export default function DesignPage() {
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [fileToRename, setFileToRename] = useState<ProjectFile | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [showGdsViewer, setShowGdsViewer] = useState(false);
+  const [gdsViewerHeight, setGdsViewerHeight] = useState(400);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const resizeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadFiles();
   }, [projectId]);
+
+  // Show GDS viewer when Python file is active
+  useEffect(() => {
+    if (activeFile && activeFile.filename.endsWith('.py')) {
+      setShowGdsViewer(true);
+    } else {
+      setShowGdsViewer(false);
+    }
+  }, [activeFile]);
 
   // Use useCallback to prevent stale closures
   const saveFile = useCallback(async () => {
@@ -204,6 +216,33 @@ export default function DesignPage() {
     editorRef.current = editor;
   };
 
+  // Handle GDS viewer resize
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = gdsViewerHeight;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = startY - e.clientY;
+      const newHeight = Math.max(200, Math.min(800, startHeight + delta));
+      setGdsViewerHeight(newHeight);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Get GDS filename from Python filename
+  const getGdsFilename = (pythonFilename: string): string => {
+    const baseName = pythonFilename.replace(/\.py$/, '');
+    return `${baseName}.gds`;
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -310,6 +349,14 @@ export default function DesignPage() {
                 <FileCode className="w-4 h-4 text-gray-600" />
                 <span className="text-sm font-medium">{activeFile.filename}</span>
                 <span className="text-xs text-gray-500">({activeFile.filepath})</span>
+                {activeFile.filename.endsWith('.py') && (
+                  <button
+                    onClick={() => setShowGdsViewer(!showGdsViewer)}
+                    className="ml-2 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                  >
+                    {showGdsViewer ? 'Hide' : 'Show'} GDS Viewer
+                  </button>
+                )}
               </div>
               <div className="text-xs text-gray-500">
                 {editorContent.split('\n').length} lines
@@ -317,23 +364,65 @@ export default function DesignPage() {
             </div>
 
             {/* Monaco Editor */}
-            <div className="flex-1">
-              <Editor
-                height="100%"
-                defaultLanguage="verilog"
-                theme="vs-dark"
-                value={editorContent}
-                onChange={(value) => setEditorContent(value || '')}
-                onMount={handleEditorMount}
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 14,
-                  lineNumbers: 'on',
-                  wordWrap: 'on',
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                }}
-              />
+            <div className={showGdsViewer ? 'flex-1 flex flex-col overflow-hidden' : 'flex-1'}>
+              <div className={showGdsViewer ? `flex-shrink-0` : 'h-full'} style={showGdsViewer ? { height: `calc(100% - ${gdsViewerHeight}px - 4px)` } : {}}>
+                <Editor
+                  height="100%"
+                  defaultLanguage={activeFile.filename.endsWith('.py') ? 'python' : 'verilog'}
+                  theme="vs-dark"
+                  value={editorContent}
+                  onChange={(value) => setEditorContent(value || '')}
+                  onMount={handleEditorMount}
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    lineNumbers: 'on',
+                    wordWrap: 'on',
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                  }}
+                />
+              </div>
+
+              {/* GDS Viewer - shown below editor for Python files */}
+              {showGdsViewer && (
+                <>
+                  {/* Resize handle */}
+                  <div
+                    ref={resizeRef}
+                    onMouseDown={handleResizeMouseDown}
+                    className="h-1 bg-gray-200 hover:bg-blue-400 cursor-ns-resize flex items-center justify-center group"
+                  >
+                    <div className="w-12 h-0.5 bg-gray-400 group-hover:bg-blue-500 rounded"></div>
+                  </div>
+
+                  {/* GDS Viewer */}
+                  <div className="flex-shrink-0 bg-gray-900 overflow-hidden" style={{ height: `${gdsViewerHeight}px` }}>
+                    <div className="h-full flex flex-col">
+                      <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                          <span className="text-sm font-medium text-white">KLayout GDS Viewer</span>
+                          <span className="text-xs text-gray-400">({getGdsFilename(activeFile.filename)})</span>
+                        </div>
+                        <button
+                          onClick={() => setShowGdsViewer(false)}
+                          className="text-gray-400 hover:text-white text-sm"
+                        >
+                          Hide
+                        </button>
+                      </div>
+                      <div className="flex-1 bg-white">
+                        <iframe
+                          src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/kweb/gds/${projectId}/${getGdsFilename(activeFile.filename)}`}
+                          className="w-full h-full border-0"
+                          title="KLayout GDS Viewer"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </>
         ) : (
