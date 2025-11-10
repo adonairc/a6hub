@@ -36,4 +36,4 @@ COPY . .
 RUN mkdir -p /tmp/a6hub-storage /tmp/a6hub-repos
 
 # Run Celery worker
-CMD ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "--queues=build,simulation", "--concurrency=2"]
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "--queues=build,simulation,python", "--concurrency=2"]

@@ -111,7 +111,7 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-    command: celery -A app.workers.celery_app worker --loglevel=info --queues=build,simulation --concurrency=2
+    command: celery -A app.workers.celery_app worker --loglevel=info --queues=build,simulation,python --concurrency=2
     restart: unless-stopped
 
   # Flower - Celery Monitoring Dashboard

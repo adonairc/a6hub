@@ -25,6 +25,6 @@ export POSTGRES_PORT=5432
 cd "$(dirname "$0")/.."
 celery -A app.workers.celery_app worker \
     --loglevel=info \
-    --queues=build,simulation \
+    --queues=build,simulation,python \
     --concurrency=2 \
     --max-tasks-per-child=50
