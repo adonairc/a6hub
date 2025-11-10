@@ -5,6 +5,8 @@ Multi-tenant SaaS platform for collaborative chip design automation
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response as StarletteResponse
 import time
 import logging
 
@@ -73,6 +75,19 @@ async def startup_event():
     # Create database tables
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created/verified")
+
+    # Mount kweb as a sub-application
+    try:
+        from app.services.kweb_service import kweb_service
+        from kweb.viewer import get_app as get_kweb_app
+
+        kweb_app = get_kweb_app(fileslocation=kweb_service.temp_dir)
+        app.mount("/kweb-internal", kweb_app)
+        logger.info(f"Mounted kweb viewer at /kweb-internal, serving from: {kweb_service.temp_dir}")
+    except ImportError as e:
+        logger.warning(f"KWeb not available, skipping mount: {e}")
+    except Exception as e:
+        logger.error(f"Failed to mount kweb: {e}")
 
 
 @app.on_event("shutdown")

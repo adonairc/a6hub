@@ -4,13 +4,13 @@ Serves GDS files through KLayout web viewer
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import HTMLResponse, FileResponse, Response
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from typing import Optional
 import os
 import tempfile
 import logging
 from pathlib import Path
+import httpx
 
 from app.core.security import get_current_user
 from app.db.session import get_db
@@ -28,9 +28,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Try to import kweb
+# Try to import kweb to check availability
 KWEB_AVAILABLE = False
-get_kweb_app = None
 
 try:
     from kweb.viewer import get_app as get_kweb_app
@@ -44,23 +43,26 @@ except Exception as e:
     logger.error(f"Failed to import KWeb: {e}")
 
 
-def get_kweb_client_for_file(project_id: int, filename: str):
+async def call_kweb_internal(path: str) -> Optional[httpx.Response]:
     """
-    Create a fresh kweb client for serving a specific file
+    Make async internal request to mounted kweb app
 
-    This ensures kweb can see the file since it's created after the file exists.
+    Args:
+        path: Path to request from kweb (e.g., "/gds/file.gds")
+
+    Returns:
+        httpx.Response or None if failed
     """
-    if not KWEB_AVAILABLE or not get_kweb_app:
+    if not KWEB_AVAILABLE:
         return None
 
     try:
-        # Create a fresh kweb app instance with the temp directory
-        kweb_app = get_kweb_app(fileslocation=kweb_service.temp_dir)
-        client = TestClient(kweb_app)
-        logger.info(f"Created fresh kweb client for {filename}")
-        return client
+        # Use httpx to make async request to the mounted kweb app
+        async with httpx.AsyncClient(base_url="http://localhost:8000") as client:
+            response = await client.get(f"/kweb-internal{path}")
+            return response
     except Exception as e:
-        logger.error(f"Failed to create kweb client: {e}")
+        logger.error(f"Failed to call kweb internal: {e}")
         return None
 
 
@@ -196,7 +198,7 @@ async def view_gds_file(
             logger.info(f"Prepared GDS file for viewing: {file_path}")
 
             # If kweb is available, return HTML that iframes the viewer
-            if KWEB_AVAILABLE and get_kweb_app:
+            if KWEB_AVAILABLE:
                 viewer_html = f"""
                 <!DOCTYPE html>
                 <html>
@@ -344,7 +346,7 @@ async def kweb_viewer_direct(
 
     Requires token parameter for authentication (used in iframes).
     """
-    if not KWEB_AVAILABLE or not get_kweb_app:
+    if not KWEB_AVAILABLE:
         return HTMLResponse(
             content="<html><body><h1>KWeb not installed</h1><p>Install kweb with: pip install kweb</p><p>Then rebuild the Docker container.</p></body></html>"
         )
@@ -403,40 +405,32 @@ async def kweb_viewer_direct(
     logger.info(f"Target file exists: {Path(gds_path).exists()}")
     logger.info(f"Target file size: {Path(gds_path).stat().st_size if Path(gds_path).exists() else 'N/A'}")
 
-    # Create a fresh kweb client that can see the file
-    kweb_client = get_kweb_client_for_file(project_id, filename)
+    # Call kweb mounted app internally
+    # KWeb expects: /gds/<filename>
+    # Files are stored with flat naming: project_{id}_{filename}
+    try:
+        kweb_response = await call_kweb_internal(f"/gds/{kweb_filename}")
 
-    if not kweb_client:
-        logger.error("Failed to create kweb client")
-        # Fall through to error handler
-    else:
-        # Proxy request to kweb app using fresh TestClient
-        # KWeb expects: /gds/<filename>
-        # Files are stored with flat naming: project_{id}_{filename}
-        try:
-            kweb_response = kweb_client.get(f"/gds/{kweb_filename}")
-
+        if kweb_response and kweb_response.status_code == 200:
             logger.info(f"KWeb response status: {kweb_response.status_code}")
-            if kweb_response.status_code != 200:
-                logger.error(f"KWeb response body: {kweb_response.text[:500]}")
-
-            # Return kweb's response
-            if kweb_response.status_code == 200:
-                return HTMLResponse(
-                    content=kweb_response.text,
-                    status_code=kweb_response.status_code,
-                    headers=dict(kweb_response.headers)
-                )
-            else:
+            return HTMLResponse(
+                content=kweb_response.text,
+                status_code=kweb_response.status_code,
+                headers=dict(kweb_response.headers)
+            )
+        else:
+            if kweb_response:
                 logger.warning(f"KWeb returned status {kweb_response.status_code}")
-                # Fall through to error handler
+                logger.error(f"KWeb response body: {kweb_response.text[:500]}")
+            else:
+                logger.error("Failed to get response from kweb")
 
-        except Exception as e:
-            logger.error(f"Error calling kweb: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Error calling kweb: {e}", exc_info=True)
 
-        # Fallback to simple viewer
-        html = f"""
-        <!DOCTYPE html>
+    # Fallback to error viewer
+    html = f"""
+    <!DOCTYPE html>
         <html>
         <head>
             <title>KLayout Viewer - {filename}</title>
@@ -504,7 +498,7 @@ async def kweb_viewer_direct(
                         <h2>🔬 GDS File Ready</h2>
                         <p>File: <strong>{filename}</strong></p>
                         <div class="error">
-                            Error loading kweb viewer: {str(e)}
+                            Error loading kweb viewer. File exists but viewer failed to load.
                         </div>
                         <p style="color: #aaa; margin-top: 2rem;">
                             The GDS file is available and ready for viewing.<br>
@@ -522,35 +516,35 @@ async def kweb_viewer_direct(
         </body>
         </html>
         """
-        return HTMLResponse(content=html)
+    return HTMLResponse(content=html)
 
 
 @router.get("/debug/list-files")
 async def debug_list_kweb_files():
     """Debug endpoint to see what files kweb can access"""
-    if not KWEB_AVAILABLE or not get_kweb_app:
+    if not KWEB_AVAILABLE:
         return {"error": "KWeb not available"}
 
     try:
-        # Create a fresh kweb client
-        client = get_kweb_client_for_file(0, "test")
-
-        if not client:
-            return {"error": "Failed to create kweb client"}
-
-        # Try to get the root path from kweb
-        response = client.get("/")
+        # Call kweb root
+        response = await call_kweb_internal("/")
 
         # List files in temp_dir
         temp_dir_files = [str(f) for f in Path(kweb_service.temp_dir).iterdir()]
 
-        return {
+        result = {
             "kweb_available": KWEB_AVAILABLE,
             "temp_dir": str(kweb_service.temp_dir),
             "files_in_temp_dir": temp_dir_files,
-            "kweb_root_status": response.status_code,
-            "kweb_root_response": response.text[:500] if response.status_code == 200 else response.text
         }
+
+        if response:
+            result["kweb_root_status"] = response.status_code
+            result["kweb_root_response"] = response.text[:500] if response.status_code == 200 else response.text
+        else:
+            result["kweb_root_status"] = "No response"
+
+        return result
     except Exception as e:
         return {"error": str(e)}
 
@@ -562,20 +556,14 @@ async def serve_kweb_assets(path: str):
 
     No authentication needed for static assets.
     """
-    if not KWEB_AVAILABLE or not get_kweb_app:
+    if not KWEB_AVAILABLE:
         raise HTTPException(status_code=404, detail="KWeb not available")
 
     try:
-        # Create a fresh kweb client for assets
-        client = get_kweb_client_for_file(0, "assets")
+        # Call kweb for asset
+        kweb_response = await call_kweb_internal(f"/{path}")
 
-        if not client:
-            raise HTTPException(status_code=500, detail="Failed to create kweb client")
-
-        # Proxy the request to kweb
-        kweb_response = client.get(f"/{path}")
-
-        if kweb_response.status_code == 200:
+        if kweb_response and kweb_response.status_code == 200:
             # Determine content type based on file extension
             content_type = kweb_response.headers.get("content-type", "application/octet-stream")
 
@@ -584,9 +572,13 @@ async def serve_kweb_assets(path: str):
                 media_type=content_type,
                 headers=dict(kweb_response.headers)
             )
-        else:
+        elif kweb_response:
             raise HTTPException(status_code=kweb_response.status_code, detail="Asset not found")
+        else:
+            raise HTTPException(status_code=500, detail="Failed to contact kweb")
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error serving kweb asset {path}: {e}")
         raise HTTPException(status_code=500, detail="Failed to load asset")
