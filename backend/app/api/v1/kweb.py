@@ -57,13 +57,15 @@ async def call_kweb_internal(path: str, request: Request) -> Optional[Response]:
     if not KWEB_AVAILABLE:
         return None
 
-    try:
-        # Import the main app to access the mounted kweb
-        from main import app
+    # Check if kweb app is mounted
+    if not kweb_service.kweb_app:
+        logger.error("KWeb app not mounted yet")
+        return None
 
+    try:
         # Create a new scope for the kweb request
         scope = dict(request.scope)
-        scope["path"] = f"/kweb-internal{path}"
+        scope["path"] = path  # Use path directly, not prefixed
         scope["root_path"] = ""
 
         # Create response container
@@ -85,8 +87,8 @@ async def call_kweb_internal(path: str, request: Request) -> Optional[Response]:
             elif message["type"] == "http.response.body":
                 body_parts.append(message.get("body", b""))
 
-        # Call the mounted app
-        await app(scope, receive, send)
+        # Call the kweb app directly (not through main app)
+        await kweb_service.kweb_app(scope, receive, send)
 
         # Construct response
         body = b"".join(body_parts)

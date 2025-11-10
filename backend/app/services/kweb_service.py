@@ -25,6 +25,9 @@ class KWebService:
         self.temp_dir = storage_base / "kweb_gds"
         self.temp_dir.mkdir(parents=True, exist_ok=True)
 
+        # Store reference to mounted kweb app (set during startup)
+        self.kweb_app = None
+
         logger.info(f"Initialized KWeb service with persistent directory: {self.temp_dir}")
 
         # Create a README file so the directory isn't empty at mount time

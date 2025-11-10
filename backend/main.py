@@ -83,6 +83,10 @@ async def startup_event():
 
         kweb_app = get_kweb_app(fileslocation=kweb_service.temp_dir)
         app.mount("/kweb-internal", kweb_app)
+
+        # Store reference to kweb app in service for direct ASGI calls
+        kweb_service.kweb_app = kweb_app
+
         logger.info(f"Mounted kweb viewer at /kweb-internal, serving from: {kweb_service.temp_dir}")
     except ImportError as e:
         logger.warning(f"KWeb not available, skipping mount: {e}")
