@@ -113,7 +113,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
                         : 'border-transparent hover:text-gray-600 hover:border-gray-300'
                     }`}
                   >
-                    Design
+                    Editor
                   </Link>
                 </li>
                 <li className="me-2">
