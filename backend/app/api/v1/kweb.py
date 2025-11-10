@@ -4,6 +4,7 @@ Serves GDS files through KLayout web viewer
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import HTMLResponse, FileResponse, Response
+from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from typing import Optional
 import os
@@ -27,14 +28,29 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Try to import kweb
+# Try to import kweb and create viewer app
+KWEB_AVAILABLE = False
+kweb_app = None
+kweb_client = None
+
 try:
     from kweb.viewer import get_app as get_kweb_app
+
+    # Create kweb app instance with the base temp directory
+    kweb_base_dir = kweb_service.temp_dir
+    kweb_app = get_kweb_app(fileslocation=kweb_base_dir)
+
+    # Create test client for internal requests
+    kweb_client = TestClient(kweb_app)
+
     KWEB_AVAILABLE = True
-    logger.info("KWeb viewer is available")
-except ImportError:
+    logger.info(f"KWeb viewer is available, serving from: {kweb_base_dir}")
+except ImportError as e:
     KWEB_AVAILABLE = False
-    logger.warning("KWeb is not installed. GDS viewer will show placeholder.")
+    logger.warning(f"KWeb is not installed. GDS viewer will show placeholder. Error: {e}")
+except Exception as e:
+    KWEB_AVAILABLE = False
+    logger.error(f"Failed to initialize KWeb: {e}")
 
 
 def get_user_from_token(token: str, db: Session) -> Optional[User]:
@@ -333,6 +349,7 @@ async def view_gds_file(
 
 @router.get("/viewer/{project_id}/{filename}")
 async def kweb_viewer_direct(
+    request: Request,
     project_id: int,
     filename: str,
     token: str = Query(..., description="Authentication token"),
@@ -343,9 +360,9 @@ async def kweb_viewer_direct(
 
     Requires token parameter for authentication (used in iframes).
     """
-    if not KWEB_AVAILABLE:
+    if not KWEB_AVAILABLE or not kweb_app:
         return HTMLResponse(
-            content="<html><body><h1>KWeb not installed</h1><p>Install with: pip install kweb</p></body></html>"
+            content="<html><body><h1>KWeb not installed</h1><p>Install kweb with: pip install kweb</p><p>Then rebuild the Docker container.</p></body></html>"
         )
 
     # Get user from token
@@ -381,90 +398,150 @@ async def kweb_viewer_direct(
                 content="<html><body><h1>GDS file not found</h1></body></html>"
             )
 
-    # Serve using kweb
-    project_dir = kweb_service.get_project_dir(project_id)
+    # Proxy request to kweb app using TestClient
+    # KWeb expects the path format: /gds/<path_relative_to_fileslocation>
+    # Our files are in: temp_dir/{project_id}/{filename}
+    # So we need to pass: {project_id}/{filename}
+    relative_path = f"{project_id}/{filename}"
 
-    # Read the GDS file and create a simple viewer
-    # For now, we'll create a basic HTML viewer since kweb integration is complex
-    # This can be enhanced later with actual kweb rendering
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>KLayout Viewer - {filename}</title>
-        <meta charset="utf-8">
-        <style>
-            body, html {{
-                margin: 0;
-                padding: 0;
-                height: 100%;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                background: #f0f0f0;
-            }}
-            .container {{
-                display: flex;
-                flex-direction: column;
-                height: 100%;
-            }}
-            .toolbar {{
-                background: #2c2c2c;
-                color: white;
-                padding: 10px 20px;
-                display: flex;
-                align-items: center;
-                gap: 20px;
-            }}
-            .viewer {{
-                flex: 1;
-                background: white;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                position: relative;
-            }}
-            .placeholder {{
-                text-align: center;
-                color: #666;
-            }}
-            .status {{
-                background: #4CAF50;
-                color: white;
-                padding: 4px 12px;
-                border-radius: 12px;
-                font-size: 12px;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="toolbar">
-                <strong>KLayout GDS Viewer</strong>
-                <span class="status">● File Loaded</span>
-                <span style="margin-left: auto; font-family: monospace;">{filename}</span>
-            </div>
-            <div class="viewer">
-                <div class="placeholder">
-                    <h2>🔬 KLayout Viewer</h2>
-                    <p>File: <strong>{filename}</strong></p>
-                    <p>Location: {gds_path}</p>
-                    <p style="color: #999; font-size: 14px; max-width: 500px; margin: 20px auto;">
-                        The KLayout viewer canvas will be rendered here when kweb is fully configured.
-                        The GDS file has been successfully loaded from MinIO storage.
-                    </p>
-                    <p style="margin-top: 30px;">
-                        <a href="/api/v1/kweb/download/{project_id}/{filename}?token={token}"
-                           style="background: #2196F3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
-                            📥 Download GDS File
-                        </a>
-                    </p>
+    # Call kweb's endpoint via TestClient
+    try:
+        kweb_response = kweb_client.get(f"/gds/{relative_path}")
+
+        # Return kweb's response
+        if kweb_response.status_code == 200:
+            return HTMLResponse(
+                content=kweb_response.text,
+                status_code=kweb_response.status_code,
+                headers=dict(kweb_response.headers)
+            )
+        else:
+            logger.warning(f"KWeb returned status {kweb_response.status_code}")
+            # Fall through to error handler
+
+    except Exception as e:
+        logger.error(f"Error calling kweb: {e}", exc_info=True)
+
+        # Fallback to simple viewer
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>KLayout Viewer - {filename}</title>
+            <meta charset="utf-8">
+            <style>
+                body, html {{
+                    margin: 0;
+                    padding: 0;
+                    height: 100%;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                    background: #1a1a1a;
+                    color: white;
+                }}
+                .container {{
+                    display: flex;
+                    flex-direction: column;
+                    height: 100%;
+                }}
+                .toolbar {{
+                    background: #2c2c2c;
+                    padding: 10px 20px;
+                    display: flex;
+                    align-items: center;
+                    gap: 20px;
+                    border-bottom: 1px solid #444;
+                }}
+                .viewer {{
+                    flex: 1;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }}
+                .placeholder {{
+                    text-align: center;
+                    max-width: 600px;
+                    padding: 2rem;
+                }}
+                .status {{
+                    background: #4CAF50;
+                    color: white;
+                    padding: 4px 12px;
+                    border-radius: 12px;
+                    font-size: 12px;
+                }}
+                .error {{
+                    background: #f44336;
+                    color: white;
+                    padding: 1rem;
+                    border-radius: 8px;
+                    margin: 1rem 0;
+                    font-family: monospace;
+                    font-size: 14px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="toolbar">
+                    <strong>KLayout GDS Viewer</strong>
+                    <span class="status">● File Ready</span>
+                    <span style="margin-left: auto; font-family: monospace;">{filename}</span>
+                </div>
+                <div class="viewer">
+                    <div class="placeholder">
+                        <h2>🔬 GDS File Ready</h2>
+                        <p>File: <strong>{filename}</strong></p>
+                        <div class="error">
+                            Error loading kweb viewer: {str(e)}
+                        </div>
+                        <p style="color: #aaa; margin-top: 2rem;">
+                            The GDS file is available and ready for viewing.<br>
+                            Make sure kweb is properly installed and the Docker container is rebuilt.
+                        </p>
+                        <p style="margin-top: 30px;">
+                            <a href="/api/v1/kweb/download/{project_id}/{filename}?token={token}"
+                               style="background: #2196F3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                                📥 Download GDS File
+                            </a>
+                        </p>
+                    </div>
                 </div>
             </div>
-        </div>
-    </body>
-    </html>
-    """
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html)
 
-    return HTMLResponse(content=html)
+
+@router.get("/assets/{path:path}")
+async def serve_kweb_assets(path: str):
+    """
+    Serve static assets from kweb (JS, CSS, fonts, etc.)
+
+    No authentication needed for static assets.
+    """
+    if not KWEB_AVAILABLE or not kweb_client:
+        raise HTTPException(status_code=404, detail="KWeb not available")
+
+    try:
+        # Proxy the request to kweb
+        kweb_response = kweb_client.get(f"/{path}")
+
+        if kweb_response.status_code == 200:
+            # Determine content type based on file extension
+            content_type = kweb_response.headers.get("content-type", "application/octet-stream")
+
+            return Response(
+                content=kweb_response.content,
+                media_type=content_type,
+                headers=dict(kweb_response.headers)
+            )
+        else:
+            raise HTTPException(status_code=kweb_response.status_code, detail="Asset not found")
+
+    except Exception as e:
+        logger.error(f"Error serving kweb asset {path}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load asset")
 
 
 @router.get("/download/{project_id}/{filename}")
