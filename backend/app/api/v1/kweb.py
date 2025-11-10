@@ -43,9 +43,12 @@ except Exception as e:
     logger.error(f"Failed to import KWeb: {e}")
 
 
-async def call_kweb_internal(path: str, request: Request) -> Optional[Response]:
+async def call_kweb_fresh(path: str, request: Request) -> Optional[Response]:
     """
-    Make internal request to mounted kweb app through the main app
+    Create a fresh kweb app instance for this request
+
+    This ensures kweb sees the latest files in the directory,
+    avoiding caching issues.
 
     Args:
         path: Path to request from kweb (e.g., "/gds/file.gds")
@@ -57,36 +60,25 @@ async def call_kweb_internal(path: str, request: Request) -> Optional[Response]:
     if not KWEB_AVAILABLE:
         return None
 
-    # Check if kweb app is mounted
-    if not kweb_service.kweb_app:
-        logger.error("KWeb app not mounted yet")
-        return None
-
     try:
-        # Use TestClient to make internal request - import only when needed
         from starlette.testclient import TestClient
-        import sys
-
-        # Get main app from sys.modules to avoid circular import
-        if 'main' not in sys.modules:
-            logger.error("Main module not loaded yet")
-            return None
-
-        main_module = sys.modules['main']
-        main_app = main_module.app
+        from pathlib import Path
 
         # Log the request details
-        logger.info(f"Calling kweb through mounted app: /kweb-internal{path}")
+        logger.info(f"Creating fresh kweb instance for path: {path}")
         logger.info(f"KWeb temp_dir: {kweb_service.temp_dir}")
 
         # List files in temp_dir
-        from pathlib import Path
         temp_dir_files = list(Path(kweb_service.temp_dir).glob("*"))
         logger.info(f"Files in kweb temp_dir: {[f.name for f in temp_dir_files]}")
 
+        # Create a fresh kweb app instance
+        from kweb.viewer import get_app as get_kweb_app
+        fresh_kweb_app = get_kweb_app(fileslocation=str(kweb_service.temp_dir))
+
         # Make request through TestClient
-        with TestClient(main_app) as client:
-            response = client.get(f"/kweb-internal{path}")
+        with TestClient(fresh_kweb_app) as client:
+            response = client.get(path)
 
             logger.info(f"KWeb response: status={response.status_code}, body_length={len(response.content)}")
             if response.status_code != 200:
@@ -99,7 +91,7 @@ async def call_kweb_internal(path: str, request: Request) -> Optional[Response]:
             )
 
     except Exception as e:
-        logger.error(f"Failed to call kweb internal: {e}", exc_info=True)
+        logger.error(f"Failed to call kweb fresh: {e}", exc_info=True)
         return None
 
 
@@ -442,11 +434,11 @@ async def kweb_viewer_direct(
     logger.info(f"Target file exists: {Path(gds_path).exists()}")
     logger.info(f"Target file size: {Path(gds_path).stat().st_size if Path(gds_path).exists() else 'N/A'}")
 
-    # Call kweb mounted app internally
+    # Call kweb with fresh instance
     # KWeb expects: /gds/<filename>
     # Files are stored with flat naming: project_{id}_{filename}
     try:
-        kweb_response = await call_kweb_internal(f"/gds/{kweb_filename}", request)
+        kweb_response = await call_kweb_fresh(f"/gds/{kweb_filename}", request)
 
         if kweb_response and kweb_response.status_code == 200:
             logger.info(f"KWeb response status: {kweb_response.status_code}")
@@ -571,7 +563,7 @@ async def debug_list_kweb_files(request: Request):
 
         # Try to call kweb root
         try:
-            response = await call_kweb_internal("/", request)
+            response = await call_kweb_fresh("/", request)
             if response:
                 result["kweb_root_status"] = response.status_code
                 result["kweb_root_body"] = str(response.body[:500] if response.body else "empty")
@@ -582,7 +574,7 @@ async def debug_list_kweb_files(request: Request):
 
         # Try to call kweb /gds/ endpoint
         try:
-            gds_response = await call_kweb_internal("/gds/", request)
+            gds_response = await call_kweb_fresh("/gds/", request)
             if gds_response:
                 result["kweb_gds_status"] = gds_response.status_code
                 result["kweb_gds_body"] = str(gds_response.body[:500] if gds_response.body else "empty")
@@ -606,7 +598,7 @@ async def serve_kweb_assets(path: str, request: Request):
 
     try:
         # Call kweb for asset
-        kweb_response = await call_kweb_internal(f"/{path}", request)
+        kweb_response = await call_kweb_fresh(f"/{path}", request)
 
         if kweb_response and kweb_response.status_code == 200:
             return kweb_response
