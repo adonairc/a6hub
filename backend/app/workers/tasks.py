@@ -455,11 +455,12 @@ def run_build(self, job_id: int):
 
             # Docker command to run OpenLane/LibreLane
             # The openlane command is the CLI entry point in the Docker image
+            # Note: Using -i for interactive mode to capture logs properly
+            # Not using -t because TTY doesn't work well with subprocess.PIPE
             cmd = [
                 "docker", "run",
                 "--rm",
-                "-i",  # Interactive mode for log capture
-                "-t",  # Allocate a pseudo-TTY for better output formatting
+                "-i",  # Interactive mode for proper log streaming
                 "-v", f"{work_dir}:/work",
                 "-w", "/work",
                 docker_image,
