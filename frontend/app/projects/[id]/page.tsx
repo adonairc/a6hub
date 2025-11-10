@@ -38,11 +38,17 @@ export default function DesignPage() {
   const [uploading, setUploading] = useState(false);
   const [showGdsViewer, setShowGdsViewer] = useState(false);
   const [gdsViewerHeight, setGdsViewerHeight] = useState(400);
+  const [authToken, setAuthToken] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resizeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadFiles();
+    // Get auth token from localStorage
+    const token = localStorage.getItem('token');
+    if (token) {
+      setAuthToken(token);
+    }
   }, [projectId]);
 
   // Show GDS viewer when Python file is active
@@ -414,7 +420,7 @@ export default function DesignPage() {
                       </div>
                       <div className="flex-1 bg-white">
                         <iframe
-                          src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/kweb/gds/${projectId}/${getGdsFilename(activeFile.filename)}`}
+                          src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/kweb/gds/${projectId}/${getGdsFilename(activeFile.filename)}?token=${encodeURIComponent(authToken)}`}
                           className="w-full h-full border-0"
                           title="KLayout GDS Viewer"
                         />

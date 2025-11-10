@@ -2,9 +2,10 @@
 KWeb GDS Viewer API endpoints
 Serves GDS files through KLayout web viewer
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from sqlalchemy.orm import Session
+from typing import Optional
 import os
 import tempfile
 import logging
@@ -18,6 +19,10 @@ from app.models.project_file import ProjectFile
 from app.services.storage import storage_service
 from app.services.kweb_service import kweb_service
 
+# For token-based auth in iframes
+from jose import JWTError, jwt
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -30,6 +35,19 @@ try:
 except ImportError:
     KWEB_AVAILABLE = False
     logger.warning("KWeb is not installed. GDS viewer will show placeholder.")
+
+
+def get_user_from_token(token: str, db: Session) -> Optional[User]:
+    """Get user from JWT token"""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id: int = int(payload.get("sub"))
+        if user_id is None:
+            return None
+        user = db.query(User).filter(User.id == user_id).first()
+        return user
+    except (JWTError, ValueError):
+        return None
 
 
 def check_project_access(project: Project, user: User):
@@ -46,7 +64,7 @@ async def view_gds_file(
     project_id: int,
     filename: str,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    token: str = Query(..., description="Authentication token"),
     db: Session = Depends(get_db)
 ):
     """
@@ -54,7 +72,18 @@ async def view_gds_file(
 
     This endpoint returns an HTML page that embeds the KLayout viewer
     for the specified GDS file.
+
+    Requires token parameter for authentication (used in iframes).
     """
+    # Get user from token
+    user = get_user_from_token(token, db)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authenticated"
+        )
+
     # Check project access
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -63,7 +92,7 @@ async def view_gds_file(
             detail="Project not found"
         )
 
-    check_project_access(project, current_user)
+    check_project_access(project, user)
 
     # Find the GDS file
     gds_file = db.query(ProjectFile).filter(
@@ -187,7 +216,7 @@ async def view_gds_file(
                             </style>
                         </head>
                         <body>
-                            <iframe src="/api/v1/kweb/viewer/{project_id}/{filename}" title="KLayout GDS Viewer"></iframe>
+                            <iframe src="/api/v1/kweb/viewer/{project_id}/{filename}?token={token}" title="KLayout GDS Viewer"></iframe>
                         </body>
                         </html>
                         """
@@ -290,7 +319,7 @@ async def view_gds_file(
                         <li>The interactive KLayout viewer will automatically load here</li>
                     </ol>
                     <p style="margin-top: 1.5rem;">
-                        <a href="/api/v1/kweb/download/{project_id}/{filename}"
+                        <a href="/api/v1/kweb/download/{project_id}/{filename}?token={token}"
                            style="color: #60a5fa; text-decoration: none;">
                             📥 Download GDS file
                         </a>
@@ -309,15 +338,26 @@ async def view_gds_file(
 async def kweb_viewer_direct(
     project_id: int,
     filename: str,
-    current_user: User = Depends(get_current_user),
+    token: str = Query(..., description="Authentication token"),
     db: Session = Depends(get_db)
 ):
     """
     Direct kweb viewer endpoint - serves the actual KLayout viewer interface
+
+    Requires token parameter for authentication (used in iframes).
     """
     if not KWEB_AVAILABLE:
         return HTMLResponse(
             content="<html><body><h1>KWeb not installed</h1><p>Install with: pip install kweb</p></body></html>"
+        )
+
+    # Get user from token
+    user = get_user_from_token(token, db)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authenticated"
         )
 
     # Check project access
@@ -325,7 +365,7 @@ async def kweb_viewer_direct(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    check_project_access(project, current_user)
+    check_project_access(project, user)
 
     # Ensure GDS file exists in temp directory
     gds_path = kweb_service.get_gds_path(project_id, filename)
@@ -415,7 +455,7 @@ async def kweb_viewer_direct(
                         The GDS file has been successfully loaded from MinIO storage.
                     </p>
                     <p style="margin-top: 30px;">
-                        <a href="/api/v1/kweb/download/{project_id}/{filename}"
+                        <a href="/api/v1/kweb/download/{project_id}/{filename}?token={token}"
                            style="background: #2196F3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
                             📥 Download GDS File
                         </a>
@@ -434,12 +474,23 @@ async def kweb_viewer_direct(
 async def download_gds_file(
     project_id: int,
     filename: str,
-    current_user: User = Depends(get_current_user),
+    token: str = Query(..., description="Authentication token"),
     db: Session = Depends(get_db)
 ):
     """
     Download GDS file directly
+
+    Requires token parameter for authentication.
     """
+    # Get user from token
+    user = get_user_from_token(token, db)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authenticated"
+        )
+
     # Check project access
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
@@ -448,7 +499,7 @@ async def download_gds_file(
             detail="Project not found"
         )
 
-    check_project_access(project, current_user)
+    check_project_access(project, user)
 
     # Find the GDS file
     gds_file = db.query(ProjectFile).filter(
