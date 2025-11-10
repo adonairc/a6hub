@@ -371,6 +371,18 @@ async def kweb_viewer_direct(
                 content="<html><body><h1>GDS file not found</h1></body></html>"
             )
 
+    # Verify file exists before calling kweb
+    actual_file_path = Path(gds_path)
+    if not actual_file_path.exists():
+        logger.error(f"GDS file does not exist at expected path: {gds_path}")
+        return HTMLResponse(
+            content=f"<html><body><h1>Error</h1><p>GDS file not found at path: {gds_path}</p></body></html>"
+        )
+
+    logger.info(f"GDS file verified at: {gds_path}")
+    logger.info(f"KWeb temp_dir: {kweb_service.temp_dir}")
+    logger.info(f"Requesting kweb path: /gds/{project_id}/{filename}")
+
     # Proxy request to kweb app using TestClient
     # KWeb expects the path format: /gds/<path_relative_to_fileslocation>
     # Our files are in: temp_dir/{project_id}/{filename}
@@ -380,6 +392,10 @@ async def kweb_viewer_direct(
     # Call kweb's endpoint via TestClient
     try:
         kweb_response = kweb_client.get(f"/gds/{relative_path}")
+
+        logger.info(f"KWeb response status: {kweb_response.status_code}")
+        if kweb_response.status_code != 200:
+            logger.error(f"KWeb response body: {kweb_response.text[:500]}")
 
         # Return kweb's response
         if kweb_response.status_code == 200:
