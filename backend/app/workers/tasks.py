@@ -454,15 +454,13 @@ def run_build(self, job_id: int):
             append_job_logs(self.db, job, start_log)
 
             # Docker command to run LibreLane
+            # Note: The Docker image has its own entrypoint that handles LibreLane execution
             cmd = [
                 "docker", "run",
                 "--rm",
                 "-v", f"{work_dir}:/work",
                 "-w", "/work",
                 docker_image,
-                "python3", "-m", "librelane",
-                "--dockerized",
-                f"--pdk-root=/root/.ciel",
                 "/work/config.json"
             ]
 

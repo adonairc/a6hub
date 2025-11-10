@@ -142,9 +142,7 @@ LibreLane supports two execution modes:
 docker run --rm \
   -v /work:/work \
   -w /work \
-  efabless/openlane:latest \
-  --dockerized \
-  --pdk-root=/root/.ciel \
+  ghcr.io/efabless/openlane2:latest \
   /work/config.json
 ```
 
@@ -266,7 +264,7 @@ class LibreLaneBuildConfig:
     clock_period: str = "10"
     verilog_files: List[str] = []
     use_docker: bool = True  # Default to Docker for consistent environment
-    docker_image: str = "efabless/openlane:latest"
+    docker_image: str = "ghcr.io/efabless/openlane2:latest"
     extra_args: Dict[str, Any] = {}
 ```
 

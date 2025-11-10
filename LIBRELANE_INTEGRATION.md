@@ -43,18 +43,16 @@ Enhanced `run_build` task that:
 - Identifies and reports generated artifacts (GDSII, reports)
 - Handles timeouts and errors gracefully
 
-**Docker Command:**
+**Docker Command (LibreLane/OpenLane 2):**
 ```bash
 docker run --rm \
   -v /work:/work \
   -w /work \
-  efabless/openlane:latest \
-  --dockerized \
-  --pdk-root=/root/.ciel \
+  ghcr.io/efabless/openlane2:latest \
   /work/config.json
 ```
 
-**Note:** The default Docker image is `efabless/openlane:latest` (OpenLane v1). For other options, see `backend/OPENLANE_DOCKER_SETUP.md`.
+**Note:** The default Docker image is `ghcr.io/efabless/openlane2:latest` which includes LibreLane. The image has its own entrypoint that handles execution.
 
 #### 3. Build API Endpoints (`app/api/v1/builds.py`)
 
