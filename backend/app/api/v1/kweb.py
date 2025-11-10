@@ -177,9 +177,6 @@ async def view_gds_file(
                     # Create kweb app instance with the project directory
                     kweb_app = get_kweb_app(path=project_dir)
 
-                    # Forward request to kweb app
-                    from fastapi.responses import HTMLResponse
-
                     # Call kweb's viewer endpoint
                     async with kweb_app.router.lifespan_context(kweb_app):
                         # Get the GDS viewer HTML from kweb
