@@ -45,7 +45,7 @@ except Exception as e:
 
 async def call_kweb_internal(path: str, request: Request) -> Optional[Response]:
     """
-    Make internal request to mounted kweb app by forwarding the request
+    Make internal request to mounted kweb app through the main app
 
     Args:
         path: Path to request from kweb (e.g., "/gds/file.gds")
@@ -63,42 +63,40 @@ async def call_kweb_internal(path: str, request: Request) -> Optional[Response]:
         return None
 
     try:
-        # Create a new scope for the kweb request
-        scope = dict(request.scope)
-        scope["path"] = path  # Use path directly, not prefixed
-        scope["root_path"] = ""
+        # Use TestClient to make internal request - import only when needed
+        from starlette.testclient import TestClient
+        import sys
 
-        # Create response container
-        response_started = False
-        status_code = 200
-        headers_list = []
-        body_parts = []
+        # Get main app from sys.modules to avoid circular import
+        if 'main' not in sys.modules:
+            logger.error("Main module not loaded yet")
+            return None
 
-        async def receive():
-            return {"type": "http.request", "body": b""}
+        main_module = sys.modules['main']
+        main_app = main_module.app
 
-        async def send(message):
-            nonlocal response_started, status_code, headers_list, body_parts
+        # Log the request details
+        logger.info(f"Calling kweb through mounted app: /kweb-internal{path}")
+        logger.info(f"KWeb temp_dir: {kweb_service.temp_dir}")
 
-            if message["type"] == "http.response.start":
-                response_started = True
-                status_code = message["status"]
-                headers_list = message.get("headers", [])
-            elif message["type"] == "http.response.body":
-                body_parts.append(message.get("body", b""))
+        # List files in temp_dir
+        from pathlib import Path
+        temp_dir_files = list(Path(kweb_service.temp_dir).glob("*"))
+        logger.info(f"Files in kweb temp_dir: {[f.name for f in temp_dir_files]}")
 
-        # Call the kweb app directly (not through main app)
-        await kweb_service.kweb_app(scope, receive, send)
+        # Make request through TestClient
+        with TestClient(main_app) as client:
+            response = client.get(f"/kweb-internal{path}")
 
-        # Construct response
-        body = b"".join(body_parts)
-        headers = {k.decode(): v.decode() for k, v in headers_list}
+            logger.info(f"KWeb response: status={response.status_code}, body_length={len(response.content)}")
+            if response.status_code != 200:
+                logger.warning(f"KWeb error response: {response.content[:500]}")
 
-        return Response(
-            content=body,
-            status_code=status_code,
-            headers=headers
-        )
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=dict(response.headers)
+            )
 
     except Exception as e:
         logger.error(f"Failed to call kweb internal: {e}", exc_info=True)
@@ -561,27 +559,39 @@ async def debug_list_kweb_files(request: Request):
         return {"error": "KWeb not available"}
 
     try:
-        # Call kweb root
-        response = await call_kweb_internal("/", request)
-
         # List files in temp_dir
         temp_dir_files = [str(f) for f in Path(kweb_service.temp_dir).iterdir()]
 
         result = {
             "kweb_available": KWEB_AVAILABLE,
+            "kweb_app_mounted": kweb_service.kweb_app is not None,
             "temp_dir": str(kweb_service.temp_dir),
             "files_in_temp_dir": temp_dir_files,
         }
 
-        if response:
-            result["kweb_root_status"] = response.status_code
-            result["kweb_root_body"] = str(response.body[:500] if response.body else "empty")
-        else:
-            result["kweb_root_status"] = "No response"
+        # Try to call kweb root
+        try:
+            response = await call_kweb_internal("/", request)
+            if response:
+                result["kweb_root_status"] = response.status_code
+                result["kweb_root_body"] = str(response.body[:500] if response.body else "empty")
+            else:
+                result["kweb_root_status"] = "No response"
+        except Exception as e:
+            result["kweb_root_error"] = str(e)
+
+        # Try to call kweb /gds/ endpoint
+        try:
+            gds_response = await call_kweb_internal("/gds/", request)
+            if gds_response:
+                result["kweb_gds_status"] = gds_response.status_code
+                result["kweb_gds_body"] = str(gds_response.body[:500] if gds_response.body else "empty")
+        except Exception as e:
+            result["kweb_gds_error"] = str(e)
 
         return result
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), "traceback": __import__('traceback').format_exc()}
 
 
 @router.get("/assets/{path:path}")
