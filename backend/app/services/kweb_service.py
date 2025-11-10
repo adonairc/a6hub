@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Optional
 import shutil
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,10 +18,24 @@ class KWebService:
     """Service for managing KLayout web viewer integration"""
 
     def __init__(self):
-        """Initialize KWeb service with temporary directory for GDS files"""
-        # Create a temporary directory for GDS files
-        self.temp_dir = Path(tempfile.mkdtemp(prefix="kweb_gds_"))
-        logger.info(f"Initialized KWeb service with temp directory: {self.temp_dir}")
+        """Initialize KWeb service with persistent directory for GDS files"""
+        # Use persistent directory instead of temp directory
+        # This ensures files persist across app restarts and kweb can see them
+        storage_base = Path(settings.STORAGE_BASE_PATH)
+        self.temp_dir = storage_base / "kweb_gds"
+        self.temp_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"Initialized KWeb service with persistent directory: {self.temp_dir}")
+
+        # Create a README file so the directory isn't empty at mount time
+        readme_path = self.temp_dir / "README.txt"
+        if not readme_path.exists():
+            readme_path.write_text(
+                "GDS files for KLayout web viewer\n"
+                "Files are named: project_{id}_{filename}.gds\n"
+                "This directory is persistent and shared with kweb viewer.\n"
+            )
+            logger.info("Created README in kweb directory")
 
     def _get_flat_filename(self, project_id: int, filename: str) -> str:
         """
