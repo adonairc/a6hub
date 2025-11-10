@@ -6,17 +6,22 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
 import re
+import logging
 
 from app.core.security import get_current_user
 from app.db.session import get_db
 from app.models.user import User
 from app.models.project import Project, ProjectVisibility
+from app.models.project_file import ProjectFile
 from app.schemas.project import (
     ProjectCreate,
     ProjectUpdate,
     ProjectResponse,
     ProjectListItem
 )
+from app.services.storage import storage_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -61,11 +66,63 @@ async def create_project(
         git_branch=project_data.git_branch,
         owner_id=current_user.id
     )
-    
+
     db.add(new_project)
     db.commit()
     db.refresh(new_project)
-    
+
+    # Create default top.v file
+    try:
+        default_content = """// Top-level module for {project_name}
+// Created automatically
+
+module top (
+    input wire clk,
+    input wire rst_n,
+    // Add your ports here
+    output wire led
+);
+
+    // Your design logic here
+
+endmodule
+""".format(project_name=project_data.name)
+
+        # Create file record
+        top_file = ProjectFile(
+            filename="top.v",
+            filepath="src/top.v",
+            size_bytes=len(default_content.encode('utf-8')),
+            mime_type="text/plain",
+            project_id=new_project.id,
+            use_minio=True
+        )
+
+        db.add(top_file)
+        db.commit()
+        db.refresh(top_file)
+
+        # Upload content to MinIO
+        file_bytes = default_content.encode('utf-8')
+        bucket, key, content_hash = storage_service.upload_file(
+            file_bytes,
+            new_project.id,
+            top_file.id,
+            "top.v",
+            "text/plain"
+        )
+
+        # Update file record with MinIO information
+        top_file.minio_bucket = bucket
+        top_file.minio_key = key
+        top_file.content_hash = content_hash
+        db.commit()
+
+        logger.info(f"Created default top.v file for project {new_project.id}")
+    except Exception as e:
+        logger.error(f"Failed to create default top.v file: {e}")
+        # Don't fail the project creation if file creation fails
+
     return new_project
 
 
